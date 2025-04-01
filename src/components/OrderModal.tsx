@@ -230,21 +230,50 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
       
       console.log('Payment proof URL:', publicUrl);
 
-      // Create order
+      // Create order with all required fields
       const orderData = {
         username: username.trim(),
         platform,
         rank: selectedRank,
         price: selectedRankOption.price,
         payment_proof: uploadData.path,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        status: 'pending' // Ensure status field is included
       };
 
-      const { error: orderError } = await supabase.from('orders').insert(orderData);
+      console.log('Sending order data:', orderData);
+
+      // First, check if the orders table exists and has the correct structure
+      const { error: checkError } = await supabase
+        .from('orders')
+        .select('id')
+        .limit(1);
+
+      if (checkError) {
+        console.error('Table check error:', checkError);
+        
+        // If there's an issue with the table, attempt to provide helpful information
+        if (checkError.message.includes('relation "orders" does not exist')) {
+          throw new Error('Orders table does not exist. Please contact support.');
+        }
+      }
+
+      // Insert the order with explicit column selection
+      const { error: orderError } = await supabase
+        .from('orders')
+        .insert(orderData);
 
       if (orderError) {
         console.error('Order error:', orderError);
-        throw new Error('Failed to create order. Please try again.');
+        
+        // Provide more specific error messages based on common issues
+        if (orderError.message && orderError.message.includes('violates not-null constraint')) {
+          throw new Error('Missing required field in order data. Please try again or contact support.');
+        } else if (orderError.message && orderError.message.includes('duplicate key')) {
+          throw new Error('This order already exists. Please try again with different information.');
+        } else {
+          throw new Error('Failed to create order. Please try again.');
+        }
       }
 
       // Send order information to Discord with the direct public URL
