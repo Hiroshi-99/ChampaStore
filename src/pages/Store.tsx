@@ -141,81 +141,42 @@ function Store() {
               Experience the power of our premium ranks with exclusive features and benefits
             </p>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Premium Ranks Card */}
-              <div className="bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-gray-700 hover:border-emerald-500/50 transition-all duration-300">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-2xl font-bold text-white">Premium Ranks</h3>
-                  <div className="bg-emerald-500/20 p-2 rounded-lg">
-                    <ShoppingCart className="text-emerald-400" size={24} />
+            {/* Features Card */}
+            <div className="bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-gray-700 max-w-3xl mx-auto mb-16">
+              <h3 className="text-2xl font-bold text-white mb-6">Premium Features</h3>
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
+                  <Check className="text-emerald-400" size={20} />
+                  <div>
+                    <h4 className="text-white font-semibold">Role Discord Access</h4>
+                    <p className="text-gray-400 text-sm">Exclusive access to VIP areas and features</p>
                   </div>
                 </div>
-                
-                <div className="space-y-4 mb-8">
-                  <div className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
-                    <span className="text-emerald-400 font-semibold">VIP</span>
-                    <span className="text-white">$5</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
-                    <span className="text-blue-400 font-semibold">MVP</span>
-                    <span className="text-white">$10</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
-                    <span className="text-purple-400 font-semibold">MVP+</span>
-                    <span className="text-white">$15</span>
-                  </div>
-                  <div className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
-                    <span className="text-amber-400 font-semibold">LEGEND</span>
-                    <span className="text-white">$25</span>
+                <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
+                  <Check className="text-emerald-400" size={20} />
+                  <div>
+                    <h4 className="text-white font-semibold">Special Commands</h4>
+                    <p className="text-gray-400 text-sm">Access to special commands and abilities</p>
                   </div>
                 </div>
-
-                <button 
-                  onClick={() => setIsOrderModalOpen(true)}
-                  className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-6 flex items-center justify-center gap-2 transition duration-300"
-                >
-                  <ShoppingCart size={18} />
-                  Purchase Rank
-                </button>
-              </div>
-
-              {/* Features Card */}
-              <div className="bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-gray-700">
-                <h3 className="text-2xl font-bold text-white mb-6">Premium Features</h3>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
-                    <Check className="text-emerald-400" size={20} />
-                    <div>
-                      <h4 className="text-white font-semibold">VIP Access</h4>
-                      <p className="text-gray-400 text-sm">Exclusive access to VIP areas and features</p>
-                    </div>
+                <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
+                  <Check className="text-emerald-400" size={20} />
+                  <div>
+                    <h4 className="text-white font-semibold">Priority Support</h4>
+                    <p className="text-gray-400 text-sm">Get priority access to support services</p>
                   </div>
-                  <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
-                    <Check className="text-emerald-400" size={20} />
-                    <div>
-                      <h4 className="text-white font-semibold">Special Commands</h4>
-                      <p className="text-gray-400 text-sm">Access to special commands and abilities</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
-                    <Check className="text-emerald-400" size={20} />
-                    <div>
-                      <h4 className="text-white font-semibold">Priority Support</h4>
-                      <p className="text-gray-400 text-sm">Get priority access to support services</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
-                    <Check className="text-emerald-400" size={20} />
-                    <div>
-                      <h4 className="text-white font-semibold">Custom Perks</h4>
-                      <p className="text-gray-400 text-sm">Unique perks based on your rank level</p>
-                    </div>
+                </div>
+                <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
+                  <Check className="text-emerald-400" size={20} />
+                  <div>
+                    <h4 className="text-white font-semibold">Custom Perks</h4>
+                    <p className="text-gray-400 text-sm">Unique perks based on your rank level</p>
                   </div>
                 </div>
               </div>
             </div>
             
-            <div className="mt-16 p-8 bg-gray-800/60 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700 text-center">
+            <div className="p-8 bg-gray-800/60 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700 text-center max-w-3xl mx-auto">
               <h3 className="text-2xl font-bold text-white mb-4">Custom Rank Packages</h3>
               <p className="text-gray-300 mb-6 max-w-2xl mx-auto">
                 Looking for something special? Contact us for custom rank packages tailored to your needs.
