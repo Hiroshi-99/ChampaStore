@@ -46,7 +46,7 @@ function Store() {
           <div className="relative w-full overflow-hidden rounded-2xl shadow-2xl animate-fade-in">
             <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent z-10"></div>
             <img 
-              src="https://i.imgur.com/dIODmz4.jpeg"
+              src="https://i.imgur.com/8WJ8noJ.jpeg"
               alt="Champa Store Banner" 
               className="w-full object-cover h-80"
             />
