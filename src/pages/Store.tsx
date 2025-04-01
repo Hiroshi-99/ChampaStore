@@ -32,7 +32,7 @@ function Store() {
             <div 
               className="w-full h-64 md:h-80 bg-cover bg-center"
               style={{
-                backgroundImage: 'url("/src/images/banner1.jpg"), url("https://i.imgur.com/OQJmGoB.jpeg")',
+                backgroundImage: 'url("/images/banner1.jpg")',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center'
               }}
