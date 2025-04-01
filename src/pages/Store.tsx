@@ -30,12 +30,13 @@ function Store() {
           <div className="relative w-full overflow-hidden rounded-2xl shadow-2xl">
             {/* Banner Image */}
             <img 
-              src="/images/banner1.jpg" 
+              src="https://i.imgur.com/dIODmz4.jpeg"
               alt="Champa Store Banner" 
-              className="w-full h-auto object-cover object-center"
+              className="w-full object-contain md:object-cover"
               style={{
-                maxHeight: "400px",
-                aspectRatio: "1920/909"
+                height: '250px',
+                width: '100%',
+                objectPosition: 'center'
               }}
             />
           </div>
