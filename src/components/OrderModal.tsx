@@ -201,6 +201,7 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
         rank: selectedRank,
         price: selectedRankOption.price,
         payment_proof: uploadData.path,
+        status: 'pending',
         created_at: new Date().toISOString()
       };
 
