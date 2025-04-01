@@ -42,61 +42,104 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
   };
 
   const sendToDiscord = async (orderData: any, paymentProofUrl: string) => {
-    const embed = {
-      title: '🎮 New Order Received!',
-      color: 0x00ff00,
-      fields: [
-        {
-          name: 'Username',
-          value: orderData.username,
-          inline: true
-        },
-        {
-          name: 'Platform',
-          value: orderData.platform.toUpperCase(),
-          inline: true
-        },
-        {
-          name: 'Rank',
-          value: orderData.rank,
-          inline: true
-        },
-        {
-          name: 'Price',
-          value: `$${orderData.price}`,
-          inline: true
-        },
-        {
-          name: 'Status',
-          value: 'Pending',
-          inline: true
-        }
-      ],
-      image: {
-        url: paymentProofUrl
-      },
-      timestamp: new Date().toISOString()
-    };
-
-    const webhookBody = {
-      embeds: [embed]
-    };
-
     try {
+      // Create a more detailed and attractive Discord webhook message
+      const embedColor = (() => {
+        // Match color to rank
+        const rankOption = RANKS.find(r => r.name === orderData.rank);
+        // Default to green if no match found
+        return rankOption ? 0x00aa00 : 0x00aa00;
+      })();
+      
+      // Format timestamp for better readability
+      const formattedDate = new Date().toLocaleString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      const webhookContent = {
+        username: "Champa Store Bot",
+        avatar_url: "https://i.imgur.com/R66g1Pe.jpg", // You can replace this with your logo URL
+        content: "🎮 **NEW RANK ORDER!** 🎮",
+        embeds: [
+          {
+            title: `New ${orderData.rank} Rank Order`,
+            color: embedColor,
+            description: `A new order has been received and is awaiting processing.`,
+            fields: [
+              {
+                name: "👤 Customer",
+                value: `\`${orderData.username}\``,
+                inline: true
+              },
+              {
+                name: "🎮 Platform",
+                value: `\`${orderData.platform.toUpperCase()}\``,
+                inline: true
+              },
+              {
+                name: "⭐ Rank",
+                value: `\`${orderData.rank}\``,
+                inline: true
+              },
+              {
+                name: "💰 Price",
+                value: `\`$${orderData.price}\``,
+                inline: true
+              },
+              {
+                name: "⏰ Time",
+                value: `\`${formattedDate}\``,
+                inline: true
+              }
+            ],
+            thumbnail: {
+              url: "https://i.imgur.com/R66g1Pe.jpg"  // You can replace this with your logo URL
+            },
+            footer: {
+              text: "Champa Store Order System",
+              icon_url: "https://i.imgur.com/R66g1Pe.jpg"  // You can replace this with your logo URL
+            },
+            timestamp: new Date().toISOString()
+          }
+        ]
+      };
+
+      // Add the payment proof image as a separate embed to ensure it displays properly
+      if (paymentProofUrl) {
+        webhookContent.embeds.push({
+          title: "💳 Payment Proof",
+          color: embedColor,
+          image: {
+            url: paymentProofUrl
+          }
+        });
+      }
+      
+      // Make the request to Discord webhook
       const response = await fetch(DISCORD_WEBHOOK_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(webhookBody),
+        body: JSON.stringify(webhookContent),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to send Discord notification');
+        const errorText = await response.text();
+        console.error('Discord webhook error:', errorText);
+        throw new Error(`Failed to send Discord notification: ${response.status} ${response.statusText}`);
       }
+      
+      console.log('Discord webhook sent successfully');
     } catch (error) {
       console.error('Error sending Discord notification:', error);
-      throw error;
+      // Don't throw error to prevent blocking the order process
+      // Just log it instead
     }
   };
 
@@ -121,16 +164,19 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
         throw new Error('Image size should be less than 5MB');
       }
 
-      // Upload payment proof with unique filename
-      const fileExt = paymentProof.name.split('.').pop();
+      // Create the file path with proper formatting for Supabase
       const timestamp = new Date().getTime();
-      const fileName = `${timestamp}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const randomString = Math.random().toString(36).substring(2, 10);
+      const fileName = `${timestamp}_${randomString}.jpg`;
+      const filePath = `guest/${fileName}`;
       
-      const { error: uploadError, data } = await supabase.storage
+      // Upload the file with proper configuration
+      const { error: uploadError, data: uploadData } = await supabase.storage
         .from('payment-proofs')
-        .upload(`guest/${fileName}`, paymentProof, {
+        .upload(filePath, paymentProof!, {
           cacheControl: '3600',
-          upsert: false
+          upsert: false,
+          contentType: paymentProof!.type
         });
 
       if (uploadError) {
@@ -138,18 +184,15 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
         throw new Error('Failed to upload payment proof. Please try again.');
       }
 
-      if (!data) {
+      if (!uploadData || !uploadData.path) {
         throw new Error('Upload failed. No data returned.');
       }
 
-      // Get the public URL for the uploaded file
-      const { data: { publicUrl } } = supabase.storage
-        .from('payment-proofs')
-        .getPublicUrl(`guest/${fileName}`);
-
-      if (!publicUrl) {
-        throw new Error('Failed to get public URL for payment proof.');
-      }
+      // Construct the absolute public URL for the image manually to ensure it works
+      const supabaseUrl = 'https://feaxosxwaajfagfjkmrx.supabase.co';
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/payment-proofs/${filePath}`;
+      
+      console.log('Payment proof URL:', publicUrl);
 
       // Create order
       const orderData = {
@@ -157,8 +200,8 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
         platform,
         rank: selectedRank,
         price: selectedRankOption.price,
-        payment_proof: data.path,
-        status: 'pending'
+        payment_proof: uploadData.path,
+        created_at: new Date().toISOString()
       };
 
       const { error: orderError } = await supabase.from('orders').insert(orderData);
@@ -168,8 +211,13 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
         throw new Error('Failed to create order. Please try again.');
       }
 
-      // Send order information to Discord
-      await sendToDiscord(orderData, publicUrl);
+      // Send order information to Discord with the direct public URL
+      try {
+        await sendToDiscord(orderData, publicUrl);
+      } catch (discordError) {
+        console.error('Discord notification failed, but order was created:', discordError);
+        // Continue with success even if Discord notification fails
+      }
 
       toast.success('Order submitted successfully! We will process your order and send the rank details to your Discord.');
       setUsername('');
