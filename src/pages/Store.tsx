@@ -30,25 +30,27 @@ function Store() {
           <div className="relative overflow-hidden rounded-2xl shadow-2xl">
             {/* Banner Background with Gradient Overlay */}
             <div 
-              className="w-full h-64 md:h-80 bg-cover bg-center"
+              className="w-full h-80 md:h-96 bg-cover bg-center"
               style={{
-                backgroundImage: 'url("/src/images/banner1.jpg")',
+                backgroundImage: 'url("/images/banner1.jpg")',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center'
               }}
             >
-              {/* Remove Gradient Overlay */}
+              {/* Gradient Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-900/80 via-blue-900/70 to-emerald-900/60"></div>
               
               {/* Floating Particles/Stars */}
-              <div className="absolute inset-0 opacity-50">
-                {[...Array(15)].map((_, i) => (
+              <div className="absolute inset-0 opacity-60">
+                {[...Array(20)].map((_, i) => (
                   <div 
                     key={i}
                     className="absolute animate-pulse text-yellow-200"
                     style={{
                       top: `${Math.random() * 100}%`,
                       left: `${Math.random() * 100}%`,
-                      animationDuration: `${3 + Math.random() * 5}s`
+                      animationDuration: `${3 + Math.random() * 5}s`,
+                      transform: `scale(${0.7 + Math.random() * 0.6})`
                     }}
                   >
                     <Star size={Math.random() * 14 + 6} fill="currentColor" />
@@ -56,31 +58,42 @@ function Store() {
                 ))}
               </div>
               
+              {/* Minecraft-style Blocks - Decorative Elements */}
+              <div className="absolute bottom-0 left-0 w-24 h-24 opacity-30 md:opacity-40">
+                <div className="absolute bottom-0 left-0 w-12 h-12 bg-green-800 rounded-sm"></div>
+                <div className="absolute bottom-0 left-14 w-10 h-16 bg-gray-700 rounded-sm"></div>
+                <div className="absolute bottom-0 left-6 w-8 h-20 bg-brown-800 rounded-sm"></div>
+              </div>
+              
+              <div className="absolute top-0 right-0 w-24 h-24 opacity-30 md:opacity-40">
+                <div className="absolute top-0 right-0 w-12 h-12 bg-emerald-800 rounded-sm"></div>
+                <div className="absolute top-0 right-14 w-10 h-16 bg-purple-800 rounded-sm"></div>
+                <div className="absolute top-0 right-6 w-8 h-20 bg-blue-800 rounded-sm"></div>
+              </div>
+              
               {/* Text Content */}
               <div className="absolute inset-0 flex flex-col justify-center px-8 md:px-16">
-                <h2 className="text-4xl md:text-5xl font-bold text-white mb-2 drop-shadow-lg">
-                  Champa Ranks
-                </h2>
+                <div className="relative">
+                  {/* Glowing Effect behind title */}
+                  <div className="absolute inset-0 blur-xl bg-emerald-500/20 rounded-full"></div>
+                  
+                  <h2 className="text-4xl md:text-6xl font-bold text-white mb-2 drop-shadow-lg relative">
+                    Champa <span className="text-emerald-400">Ranks</span>
+                  </h2>
+                </div>
+                
                 <p className="text-white/90 text-lg md:text-xl mb-6 max-w-lg drop-shadow-md">
                   Unlock exclusive features and stand out with our premium Minecraft ranks
                 </p>
-                <div className="flex space-x-2">
-                  {['VIP', 'MVP', 'MVP+', 'LEGEND', 'DEVIL', 'INFINITY'].map((rank, index) => (
-                    <span 
-                      key={rank} 
-                      className="inline-block text-xs font-bold px-3 py-1 rounded-full"
-                      style={{
-                        backgroundColor: [
-                          '#4ade80', '#3b82f6', '#a855f7', 
-                          '#eab308', '#ef4444', '#ec4899'
-                        ][index],
-                        opacity: 0.9
-                      }}
-                    >
-                      {rank}
-                    </span>
-                  ))}
-                </div>
+                
+                {/* Call to action button in the banner */}
+                <button 
+                  onClick={() => setIsOrderModalOpen(true)}
+                  className="mt-2 w-40 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-2 px-4 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-emerald-500/20"
+                >
+                  <ShoppingCart size={16} />
+                  Purchase Now
+                </button>
               </div>
             </div>
           </div>
