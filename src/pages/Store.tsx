@@ -14,8 +14,7 @@ function Store() {
           backgroundImage: 'url("")',
           backgroundColor: 'white',
           backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          filter: 'brightness(0.5)'
+          backgroundPosition: 'center'
         }}
       />
 
