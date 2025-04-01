@@ -188,11 +188,9 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
         throw new Error('Upload failed. No data returned.');
       }
 
-      // Update the public URL construction for Discord
-      // This makes sure we're using the correct format for Supabase public URLs
-      const publicUrl = supabase.storage
-        .from('payment-proofs')
-        .getPublicUrl(uploadData.path).data.publicUrl;
+      // Construct the absolute public URL for the image manually to ensure it works
+      const supabaseUrl = 'https://feaxosxwaajfagfjkmrx.supabase.co';
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/payment-proofs/${filePath}`;
       
       console.log('Payment proof URL:', publicUrl);
 
@@ -203,7 +201,6 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
         rank: selectedRank,
         price: selectedRankOption.price,
         payment_proof: uploadData.path,
-        status: 'pending',
         created_at: new Date().toISOString()
       };
 

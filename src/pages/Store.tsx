@@ -28,47 +28,15 @@ function Store() {
         {/* Banner */}
         <div className="mx-auto w-full max-w-6xl px-4 mb-8">
           <div className="relative w-full overflow-hidden rounded-2xl shadow-2xl">
-            {/* Banner Background */}
-            <div 
-              className="w-full h-72 md:h-96 bg-cover bg-center"
+            {/* Banner Image */}
+            <img 
+              src="/images/banner1.jpg" 
+              alt="Champa Store Banner" 
+              className="w-full object-cover object-center"
               style={{
-                backgroundImage: 'url("/images/banner1.jpg")',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                backgroundRepeat: 'no-repeat'
+                maxHeight: "200px",
               }}
-            >
-              {/* Floating Particles/Stars */}
-              <div className="absolute inset-0 opacity-40">
-                {[...Array(20)].map((_, i) => (
-                  <div 
-                    key={i}
-                    className="absolute animate-pulse text-yellow-200"
-                    style={{
-                      top: `${Math.random() * 100}%`,
-                      left: `${Math.random() * 100}%`,
-                      animationDuration: `${3 + Math.random() * 5}s`,
-                      transform: `scale(${0.7 + Math.random() * 0.6})`
-                    }}
-                  >
-                    <Star size={Math.random() * 14 + 6} fill="currentColor" />
-                  </div>
-                ))}
-              </div>
-              
-              {/* Minecraft-style Blocks - Decorative Elements */}
-              <div className="absolute bottom-0 left-0 w-24 h-24 opacity-30 md:opacity-40">
-                <div className="absolute bottom-0 left-0 w-12 h-12 bg-green-800 rounded-sm"></div>
-                <div className="absolute bottom-0 left-14 w-10 h-16 bg-gray-700 rounded-sm"></div>
-                <div className="absolute bottom-0 left-6 w-8 h-20 bg-brown-800 rounded-sm"></div>
-              </div>
-              
-              <div className="absolute top-0 right-0 w-24 h-24 opacity-30 md:opacity-40">
-                <div className="absolute top-0 right-0 w-12 h-12 bg-emerald-800 rounded-sm"></div>
-                <div className="absolute top-0 right-14 w-10 h-16 bg-purple-800 rounded-sm"></div>
-                <div className="absolute top-0 right-6 w-8 h-20 bg-blue-800 rounded-sm"></div>
-              </div>
-            </div>
+            />
           </div>
         </div>
 
