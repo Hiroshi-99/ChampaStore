@@ -26,15 +26,16 @@ function Store() {
         </header>
 
         {/* Banner */}
-        <div className="mx-auto w-full max-w-5xl px-4 mb-8">
+        <div className="mx-auto w-full max-w-6xl px-4 mb-8">
           <div className="relative w-full overflow-hidden rounded-2xl shadow-2xl">
             {/* Banner Background */}
             <div 
-              className="w-full h-64 md:h-80 bg-cover bg-center"
+              className="w-full h-72 md:h-96 bg-cover bg-center"
               style={{
                 backgroundImage: 'url("/images/banner1.jpg")',
                 backgroundSize: 'cover',
-                backgroundPosition: 'center'
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat'
               }}
             >
               {/* Floating Particles/Stars */}
