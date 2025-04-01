@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Upload, Info, CreditCard, User, Shield, Crown, Star } from 'lucide-react';
+import { X, Upload, Info, CreditCard, User, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -13,7 +13,6 @@ interface RankOption {
   price: number;
   color: string;
   image: string;
-  benefits: string[];
 }
 
 const RANKS: RankOption[] = [
@@ -21,50 +20,43 @@ const RANKS: RankOption[] = [
     name: 'VIP', 
     price: 5, 
     color: 'from-emerald-500 to-emerald-600',
-    image: 'https://i.imgur.com/R66g1Pe.jpg',
-    benefits: ['Basic VIP kit', 'Discord role access', 'VIP prefix in chat']
+    image: 'https://i.imgur.com/NX3RB4i.png'
   },
   { 
     name: 'MVP', 
     price: 10, 
     color: 'from-blue-500 to-blue-600',
-    image: 'https://i.imgur.com/dIODmz4.jpeg',
-    benefits: ['Premium MVP kit', 'Discord role access', 'MVP prefix in chat', 'Special commands']
+    image: 'https://i.imgur.com/gmlFpV2.png'
   },
   { 
     name: 'MVP+', 
     price: 15, 
     color: 'from-purple-500 to-purple-600',
-    image: 'https://i.imgur.com/8WJ8noJ.jpeg',
-    benefits: ['Exclusive MVP+ kit', 'Discord role access', 'MVP+ prefix in chat', 'Premium commands']
+    image: 'https://i.imgur.com/C4VE5b0.png'
   },
   { 
     name: 'LEGEND', 
     price: 20, 
     color: 'from-yellow-500 to-yellow-600',
-    image: 'https://i.imgur.com/OQJmGoB.jpeg',
-    benefits: ['Legendary kit', 'Discord role access', 'LEGEND prefix in chat', 'Premium commands']
+    image: 'https://i.imgur.com/fiqqcOY.png'
   },
   { 
     name: 'DEVIL', 
     price: 25, 
     color: 'from-red-500 to-red-600',
-    image: 'https://i.imgur.com/xmzqO4S.jpeg',
-    benefits: ['Devil kit with special items', 'Discord role access', 'DEVIL prefix in chat', 'All commands']
+    image: 'https://i.imgur.com/z0zBiyZ.png'
   },
   { 
     name: 'INFINITY', 
     price: 30, 
     color: 'from-pink-500 to-pink-600',
-    image: 'https://i.imgur.com/dIODmz4.jpeg',
-    benefits: ['Infinity kit with rare items', 'Discord role access', 'INFINITY prefix in chat', 'All commands', 'Priority support']
+    image: 'https://i.imgur.com/SW6dtYW.png'
   },
   { 
     name: 'CHAMPA', 
     price: 50, 
     color: 'from-orange-500 to-orange-600',
-    image: 'https://i.imgur.com/R66g1Pe.jpg',
-    benefits: ['Ultimate CHAMPA kit', 'Discord role access', 'CHAMPA prefix in chat', 'All commands', 'Priority support', 'Custom perks']
+    image: 'https://i.imgur.com/5xEinAj.png'
   }
 ];
 
@@ -392,25 +384,12 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
                 <Shield size={20} className="text-emerald-400" />
                 {selectedRank} Rank Preview
               </h3>
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-shrink-0">
-                  <img 
-                    src={selectedRankOption.image} 
-                    alt={`${selectedRank} Kit Preview`}
-                    className="w-full md:w-32 h-32 object-cover rounded-lg border border-gray-600"
-                  />
-                </div>
-                <div className="flex-grow">
-                  <h4 className="text-white font-medium mb-2">Benefits:</h4>
-                  <ul className="space-y-1">
-                    {selectedRankOption.benefits.map((benefit, index) => (
-                      <li key={index} className="text-gray-300 text-sm flex items-center gap-2">
-                        <Star size={12} className="text-emerald-400" />
-                        {benefit}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+              <div className="flex justify-center">
+                <img 
+                  src={selectedRankOption.image} 
+                  alt={`${selectedRank} Kit Preview`}
+                  className="w-48 h-48 object-cover rounded-lg border border-gray-600"
+                />
               </div>
             </div>
           )}
