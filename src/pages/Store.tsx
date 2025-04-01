@@ -34,8 +34,6 @@ function Store() {
               alt="Champa Store Banner" 
               className="w-full object-contain md:object-cover"
               style={{
-                height: '250px',
-                width: '100%',
                 objectPosition: 'center'
               }}
             />
