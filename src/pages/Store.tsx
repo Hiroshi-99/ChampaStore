@@ -1,9 +1,32 @@
-import React, { useState } from 'react';
-import { ShoppingCart, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShoppingCart, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { OrderModal } from '../components/OrderModal';
 
 function Store() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  const bannerImages = [
+    "https://i.imgur.com/8WJ8noJ.jpeg",
+    "https://i.imgur.com/dIODmz4.jpeg",
+    "https://i.imgur.com/OQJmGoB.jpeg"
+  ];
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % bannerImages.length);
+    }, 5000); // Change slide every 5 seconds
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const nextSlide = () => {
+    setCurrentSlide((prev) => (prev + 1) % bannerImages.length);
+  };
+
+  const prevSlide = () => {
+    setCurrentSlide((prev) => (prev - 1 + bannerImages.length) % bannerImages.length);
+  };
 
   return (
     <div className="min-h-screen relative">
@@ -43,13 +66,62 @@ function Store() {
 
         {/* Banner */}
         <div className="mx-auto w-full max-w-6xl px-4 mt-4 mb-8">
-          <div className="relative w-full overflow-hidden rounded-2xl shadow-2xl animate-fade-in">
-            <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent z-10"></div>
-            <img 
-              src="https://i.imgur.com/8WJ8noJ.jpeg"
-              alt="Champa Store Banner" 
-              className="w-full object-cover h-80"
-            />
+          <div className="relative w-full overflow-hidden rounded-2xl shadow-2xl">
+            {/* Banner Images */}
+            <div 
+              className="relative w-full h-[400px] transition-transform duration-500 ease-out"
+              style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+            >
+              <div className="absolute inset-0 flex">
+                {bannerImages.map((image, index) => (
+                  <div
+                    key={index}
+                    className="relative w-full h-full flex-shrink-0"
+                    style={{ left: `${index * 100}%` }}
+                  >
+                    <img 
+                      src={image}
+                      alt={`Banner ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/30 to-transparent"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Navigation Buttons */}
+            <button 
+              onClick={prevSlide}
+              className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors"
+              aria-label="Previous slide"
+            >
+              <ChevronLeft size={24} />
+            </button>
+            <button 
+              onClick={nextSlide}
+              className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-colors"
+              aria-label="Next slide"
+            >
+              <ChevronRight size={24} />
+            </button>
+
+            {/* Slide Indicators */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+              {bannerImages.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentSlide(index)}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    currentSlide === index 
+                      ? 'bg-white w-4' 
+                      : 'bg-white/50 hover:bg-white/75'
+                  }`}
+                  aria-label={`Go to slide ${index + 1}`}
+                />
+              ))}
+            </div>
+            {/* Banner Content */}
             <div className="absolute inset-0 z-20 flex flex-col justify-center p-8 md:p-16">
               <h2 className="text-5xl md:text-6xl font-bold text-white drop-shadow-lg mb-4">
                 Champa <span className="text-emerald-400">Ranks</span>
@@ -64,74 +136,83 @@ function Store() {
         {/* Main Content */}
         <main className="flex-1 px-4 py-8">
           <div className="max-w-6xl mx-auto">
-            <h2 className="text-3xl text-white font-bold text-center mb-2">Premium Rank Packages</h2>
-            <p className="text-gray-300 text-center mb-12 max-w-2xl mx-auto">
-              Choose from our selection of premium ranks to enhance your gameplay experience with exclusive perks and features
+            <h2 className="text-5xl text-white font-bold text-center mb-4">Champa Economy</h2>
+            <p className="text-gray-300 text-center mb-12 max-w-2xl mx-auto text-lg">
+              Experience the power of our premium ranks with exclusive features and benefits
             </p>
             
-            {/* Simplified Ranks Display */}
-            <div className="bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 max-w-3xl mx-auto shadow-xl border border-gray-700">
-              <div className="mb-6">
-                <h3 className="text-2xl font-bold text-white mb-4">Available Ranks</h3>
-                <table className="w-full text-left text-gray-300">
-                  <thead>
-                    <tr className="border-b border-gray-700">
-                      <th className="py-3 px-2 font-semibold">Rank</th>
-                      <th className="py-3 px-2 font-semibold text-right">Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr className="border-b border-gray-700/50">
-                      <td className="py-3 px-2">
-                        <span className="inline-block bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full font-semibold">VIP</span>
-                      </td>
-                      <td className="py-3 px-2 text-right">$5</td>
-                    </tr>
-                    <tr className="border-b border-gray-700/50">
-                      <td className="py-3 px-2">
-                        <span className="inline-block bg-blue-500/20 text-blue-400 px-3 py-1 rounded-full font-semibold">MVP</span>
-                      </td>
-                      <td className="py-3 px-2 text-right">$10</td>
-                    </tr>
-                    <tr className="border-b border-gray-700/50">
-                      <td className="py-3 px-2">
-                        <span className="inline-block bg-purple-500/20 text-purple-400 px-3 py-1 rounded-full font-semibold">MVP+</span>
-                      </td>
-                      <td className="py-3 px-2 text-right">$15</td>
-                    </tr>
-                    <tr>
-                      <td className="py-3 px-2">
-                        <span className="inline-block bg-amber-500/20 text-amber-400 px-3 py-1 rounded-full font-semibold">LEGEND</span>
-                      </td>
-                      <td className="py-3 px-2 text-right">$25</td>
-                    </tr>
-                  </tbody>
-                </table>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Premium Ranks Card */}
+              <div className="bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-gray-700 hover:border-emerald-500/50 transition-all duration-300">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-bold text-white">Premium Ranks</h3>
+                  <div className="bg-emerald-500/20 p-2 rounded-lg">
+                    <ShoppingCart className="text-emerald-400" size={24} />
+                  </div>
+                </div>
+                
+                <div className="space-y-4 mb-8">
+                  <div className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
+                    <span className="text-emerald-400 font-semibold">VIP</span>
+                    <span className="text-white">$5</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
+                    <span className="text-blue-400 font-semibold">MVP</span>
+                    <span className="text-white">$10</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
+                    <span className="text-purple-400 font-semibold">MVP+</span>
+                    <span className="text-white">$15</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-gray-700/30 rounded-lg">
+                    <span className="text-amber-400 font-semibold">LEGEND</span>
+                    <span className="text-white">$25</span>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => setIsOrderModalOpen(true)}
+                  className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-6 flex items-center justify-center gap-2 transition duration-300"
+                >
+                  <ShoppingCart size={18} />
+                  Purchase Rank
+                </button>
               </div>
-              
-              <div className="space-y-3 mb-8">
-                <h3 className="text-xl font-bold text-white mb-4">Features Include:</h3>
-                <div className="flex items-center text-gray-300 gap-3">
-                  <Check className="text-emerald-400" size={18} />
-                  <span>VIP Access</span>
-                </div>
-                <div className="flex items-center text-gray-300 gap-3">
-                  <Check className="text-emerald-400" size={18} />
-                  <span>Exclusive Features</span>
-                </div>
-                <div className="flex items-center text-gray-300 gap-3">
-                  <Check className="text-emerald-400" size={18} />
-                  <span>Priority Support</span>
+
+              {/* Features Card */}
+              <div className="bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-gray-700">
+                <h3 className="text-2xl font-bold text-white mb-6">Premium Features</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
+                    <Check className="text-emerald-400" size={20} />
+                    <div>
+                      <h4 className="text-white font-semibold">VIP Access</h4>
+                      <p className="text-gray-400 text-sm">Exclusive access to VIP areas and features</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
+                    <Check className="text-emerald-400" size={20} />
+                    <div>
+                      <h4 className="text-white font-semibold">Special Commands</h4>
+                      <p className="text-gray-400 text-sm">Access to special commands and abilities</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
+                    <Check className="text-emerald-400" size={20} />
+                    <div>
+                      <h4 className="text-white font-semibold">Priority Support</h4>
+                      <p className="text-gray-400 text-sm">Get priority access to support services</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
+                    <Check className="text-emerald-400" size={20} />
+                    <div>
+                      <h4 className="text-white font-semibold">Custom Perks</h4>
+                      <p className="text-gray-400 text-sm">Unique perks based on your rank level</p>
+                    </div>
+                  </div>
                 </div>
               </div>
-              
-              <button 
-                onClick={() => setIsOrderModalOpen(true)}
-                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-6 flex items-center justify-center gap-2 transition duration-300"
-              >
-                <ShoppingCart size={18} />
-                Purchase Now
-              </button>
             </div>
             
             <div className="mt-16 p-8 bg-gray-800/60 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700 text-center">
