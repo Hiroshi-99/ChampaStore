@@ -388,7 +388,7 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
                 <img 
                   src={selectedRankOption.image} 
                   alt={`${selectedRank} Kit Preview`}
-                  className="w-48 h-48 object-cover rounded-lg border border-gray-600"
+                  className="w-auto h-auto max-w-full max-h-[300px] object-contain rounded-lg border border-gray-600"
                 />
               </div>
             </div>
