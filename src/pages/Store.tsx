@@ -28,20 +28,17 @@ function Store() {
         {/* Banner */}
         <div className="mx-auto w-full max-w-5xl px-4 mb-8">
           <div className="relative overflow-hidden rounded-2xl shadow-2xl">
-            {/* Banner Background with Gradient Overlay */}
+            {/* Banner Background */}
             <div 
-              className="w-full h-80 md:h-96 bg-cover bg-center"
+              className="w-full h-64 md:h-72 bg-cover bg-center"
               style={{
                 backgroundImage: 'url("/images/banner1.jpg")',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center'
               }}
             >
-              {/* Gradient Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-900/80 via-blue-900/70 to-emerald-900/60"></div>
-              
               {/* Floating Particles/Stars */}
-              <div className="absolute inset-0 opacity-60">
+              <div className="absolute inset-0 opacity-40">
                 {[...Array(20)].map((_, i) => (
                   <div 
                     key={i}
@@ -69,31 +66,6 @@ function Store() {
                 <div className="absolute top-0 right-0 w-12 h-12 bg-emerald-800 rounded-sm"></div>
                 <div className="absolute top-0 right-14 w-10 h-16 bg-purple-800 rounded-sm"></div>
                 <div className="absolute top-0 right-6 w-8 h-20 bg-blue-800 rounded-sm"></div>
-              </div>
-              
-              {/* Text Content */}
-              <div className="absolute inset-0 flex flex-col justify-center px-8 md:px-16">
-                <div className="relative">
-                  {/* Glowing Effect behind title */}
-                  <div className="absolute inset-0 blur-xl bg-emerald-500/20 rounded-full"></div>
-                  
-                  <h2 className="text-4xl md:text-6xl font-bold text-white mb-2 drop-shadow-lg relative">
-                    Champa <span className="text-emerald-400">Ranks</span>
-                  </h2>
-                </div>
-                
-                <p className="text-white/90 text-lg md:text-xl mb-6 max-w-lg drop-shadow-md">
-                  Unlock exclusive features and stand out with our premium Minecraft ranks
-                </p>
-                
-                {/* Call to action button in the banner */}
-                <button 
-                  onClick={() => setIsOrderModalOpen(true)}
-                  className="mt-2 w-40 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-2 px-4 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-105 hover:shadow-lg hover:shadow-emerald-500/20"
-                >
-                  <ShoppingCart size={16} />
-                  Purchase Now
-                </button>
               </div>
             </div>
           </div>
