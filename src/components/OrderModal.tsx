@@ -111,19 +111,45 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
       const selectedRankOption = RANKS.find(rank => rank.name === selectedRank);
       if (!selectedRankOption) throw new Error('Please select a valid rank');
 
-      // Upload payment proof
+      // Validate file type
+      if (!paymentProof.type.startsWith('image/')) {
+        throw new Error('Please upload a valid image file');
+      }
+
+      // Validate file size (max 5MB)
+      if (paymentProof.size > 5 * 1024 * 1024) {
+        throw new Error('Image size should be less than 5MB');
+      }
+
+      // Upload payment proof with unique filename
       const fileExt = paymentProof.name.split('.').pop();
-      const fileName = `${Math.random()}.${fileExt}`;
+      const timestamp = new Date().getTime();
+      const fileName = `${timestamp}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      
       const { error: uploadError, data } = await supabase.storage
         .from('payment-proofs')
-        .upload(`guest/${fileName}`, paymentProof);
+        .upload(`guest/${fileName}`, paymentProof, {
+          cacheControl: '3600',
+          upsert: false
+        });
 
-      if (uploadError) throw uploadError;
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        throw new Error('Failed to upload payment proof. Please try again.');
+      }
+
+      if (!data) {
+        throw new Error('Upload failed. No data returned.');
+      }
 
       // Get the public URL for the uploaded file
       const { data: { publicUrl } } = supabase.storage
         .from('payment-proofs')
         .getPublicUrl(`guest/${fileName}`);
+
+      if (!publicUrl) {
+        throw new Error('Failed to get public URL for payment proof.');
+      }
 
       // Create order
       const orderData = {
@@ -137,7 +163,10 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
       const { error: orderError } = await supabase.from('orders').insert(orderData);
 
-      if (orderError) throw orderError;
+      if (orderError) {
+        console.error('Order error:', orderError);
+        throw new Error('Failed to create order. Please try again.');
+      }
 
       // Send order information to Discord
       await sendToDiscord(orderData, publicUrl);
@@ -149,6 +178,7 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
       setPaymentProof(null);
       onClose();
     } catch (error) {
+      console.error('Submit error:', error);
       toast.error(error instanceof Error ? error.message : 'An error occurred');
     } finally {
       setLoading(false);
