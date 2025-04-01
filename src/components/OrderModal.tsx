@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Upload, Info, CreditCard, User } from 'lucide-react';
+import { X, Upload, Info, CreditCard, User, Shield, Crown, Star } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -12,16 +12,60 @@ interface RankOption {
   name: string;
   price: number;
   color: string;
+  image: string;
+  benefits: string[];
 }
 
 const RANKS: RankOption[] = [
-  { name: 'VIP', price: 5, color: 'from-emerald-500 to-emerald-600' },
-  { name: 'MVP', price: 10, color: 'from-blue-500 to-blue-600' },
-  { name: 'MVP+', price: 15, color: 'from-purple-500 to-purple-600' },
-  { name: 'LEGEND', price: 20, color: 'from-yellow-500 to-yellow-600' },
-  { name: 'DEVIL', price: 25, color: 'from-red-500 to-red-600' },
-  { name: 'INFINITY', price: 30, color: 'from-pink-500 to-pink-600' },
-  { name: 'CHAMPA', price: 50, color: 'from-orange-500 to-orange-600' }
+  { 
+    name: 'VIP', 
+    price: 5, 
+    color: 'from-emerald-500 to-emerald-600',
+    image: 'https://i.imgur.com/R66g1Pe.jpg',
+    benefits: ['Basic VIP kit', 'Discord role access', 'VIP prefix in chat']
+  },
+  { 
+    name: 'MVP', 
+    price: 10, 
+    color: 'from-blue-500 to-blue-600',
+    image: 'https://i.imgur.com/dIODmz4.jpeg',
+    benefits: ['Premium MVP kit', 'Discord role access', 'MVP prefix in chat', 'Special commands']
+  },
+  { 
+    name: 'MVP+', 
+    price: 15, 
+    color: 'from-purple-500 to-purple-600',
+    image: 'https://i.imgur.com/8WJ8noJ.jpeg',
+    benefits: ['Exclusive MVP+ kit', 'Discord role access', 'MVP+ prefix in chat', 'Premium commands']
+  },
+  { 
+    name: 'LEGEND', 
+    price: 20, 
+    color: 'from-yellow-500 to-yellow-600',
+    image: 'https://i.imgur.com/OQJmGoB.jpeg',
+    benefits: ['Legendary kit', 'Discord role access', 'LEGEND prefix in chat', 'Premium commands']
+  },
+  { 
+    name: 'DEVIL', 
+    price: 25, 
+    color: 'from-red-500 to-red-600',
+    image: 'https://i.imgur.com/xmzqO4S.jpeg',
+    benefits: ['Devil kit with special items', 'Discord role access', 'DEVIL prefix in chat', 'All commands']
+  },
+  { 
+    name: 'INFINITY', 
+    price: 30, 
+    color: 'from-pink-500 to-pink-600',
+    image: 'https://i.imgur.com/dIODmz4.jpeg',
+    benefits: ['Infinity kit with rare items', 'Discord role access', 'INFINITY prefix in chat', 'All commands', 'Priority support']
+  },
+  { 
+    name: 'CHAMPA', 
+    price: 50, 
+    color: 'from-orange-500 to-orange-600',
+    image: 'https://i.imgur.com/R66g1Pe.jpg',
+    benefits: ['Ultimate CHAMPA kit', 'Discord role access', 'CHAMPA prefix in chat', 'All commands', 'Priority support', 'Custom perks']
+  }
 ];
 
 const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1326842035621068820/Os7gvio_nXdd6bM-mJ3eCxnoBVwlc7wvkCPpqFZITQMW3swCcTfZVFE45cmX1Aex4KVe'; // Replace with your Discord webhook URL
@@ -251,151 +295,176 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
           <p className="text-gray-400">Select your platform and rank to proceed with the purchase</p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
-          {/* Left Column - Order Details */}
-          <div className="space-y-6">
-            <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <Info size={20} className="text-emerald-400" />
-                Order Summary
-              </h3>
-              <div className="space-y-2">
-                <div className="flex justify-between text-gray-300">
-                  <span>Selected Rank:</span>
-                  <span className="font-medium">{selectedRank}</span>
-                </div>
-                <div className="flex justify-between text-gray-300">
-                  <span>Platform:</span>
-                  <span className="font-medium capitalize">{platform}</span>
-                </div>
-                <div className="flex justify-between text-gray-300">
-                  <span>Price:</span>
-                  <span className="font-medium text-emerald-400">${selectedRankPrice}</span>
-                </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <Info size={20} className="text-emerald-400" />
+              Order Summary
+            </h3>
+            <div className="space-y-2">
+              <div className="flex justify-between text-gray-300">
+                <span>Selected Rank:</span>
+                <span className="font-medium">{selectedRank}</span>
               </div>
-            </div>
-
-            <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <CreditCard size={20} className="text-emerald-400" />
-                Payment Details
-              </h3>
-              <div className="text-center">
-                <p className="text-gray-300 mb-4">Scan the QR code below to pay:</p>
-                <div className="bg-white p-4 rounded-lg inline-block">
-                  <img 
-                    src="https://i.imgur.com/xmzqO4S.jpeg" 
-                    alt="Payment QR Code"
-                    className="w-48 h-48 mx-auto"
-                  />
-                </div>
-                <p className="text-sm text-gray-400 mt-2">Amount: ${selectedRankPrice}</p>
+              <div className="flex justify-between text-gray-300">
+                <span>Platform:</span>
+                <span className="font-medium capitalize">{platform}</span>
+              </div>
+              <div className="flex justify-between text-gray-300">
+                <span>Price:</span>
+                <span className="font-medium text-emerald-400">${selectedRankPrice}</span>
               </div>
             </div>
           </div>
 
-          {/* Right Column - Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-2">
-                <User size={16} className="text-emerald-400" />
-                Minecraft Username
-              </label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                required
-                placeholder="Enter your Minecraft username"
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-2">
+              <User size={16} className="text-emerald-400" />
+              Minecraft Username
+            </label>
+            <input
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              required
+              placeholder="Enter your Minecraft username"
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Platform
-              </label>
-              <div className="flex gap-2">
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Platform
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setPlatform('java')}
+                className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
+                  platform === 'java'
+                    ? 'bg-emerald-500 text-white border-emerald-600'
+                    : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
+                }`}
+              >
+                Java
+              </button>
+              <button
+                type="button"
+                onClick={() => setPlatform('bedrock')}
+                className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
+                  platform === 'bedrock'
+                    ? 'bg-emerald-500 text-white border-emerald-600'
+                    : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
+                }`}
+              >
+                Bedrock
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Select Rank
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              {RANKS.map((rank) => (
                 <button
+                  key={rank.name}
                   type="button"
-                  onClick={() => setPlatform('java')}
-                  className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
-                    platform === 'java'
-                      ? 'bg-emerald-500 text-white border-emerald-600'
+                  onClick={() => setSelectedRank(rank.name)}
+                  className={`py-3 px-4 rounded-lg border transition-all transform hover:scale-105 ${
+                    selectedRank === rank.name
+                      ? `bg-gradient-to-r ${rank.color} text-white border-transparent`
                       : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
                   }`}
                 >
-                  Java
+                  <div className="font-medium">{rank.name}</div>
+                  <div className="text-sm">${rank.price}</div>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setPlatform('bedrock')}
-                  className={`flex-1 py-2 px-4 rounded-lg border transition-colors ${
-                    platform === 'bedrock'
-                      ? 'bg-emerald-500 text-white border-emerald-600'
-                      : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
-                  }`}
-                >
-                  Bedrock
-                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Rank Preview Section */}
+          {selectedRankOption && (
+            <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Shield size={20} className="text-emerald-400" />
+                {selectedRank} Rank Preview
+              </h3>
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-shrink-0">
+                  <img 
+                    src={selectedRankOption.image} 
+                    alt={`${selectedRank} Kit Preview`}
+                    className="w-full md:w-32 h-32 object-cover rounded-lg border border-gray-600"
+                  />
+                </div>
+                <div className="flex-grow">
+                  <h4 className="text-white font-medium mb-2">Benefits:</h4>
+                  <ul className="space-y-1">
+                    {selectedRankOption.benefits.map((benefit, index) => (
+                      <li key={index} className="text-gray-300 text-sm flex items-center gap-2">
+                        <Star size={12} className="text-emerald-400" />
+                        {benefit}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </div>
             </div>
+          )}
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Select Rank
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {RANKS.map((rank) => (
-                  <button
-                    key={rank.name}
-                    type="button"
-                    onClick={() => setSelectedRank(rank.name)}
-                    className={`py-3 px-4 rounded-lg border transition-all transform hover:scale-105 ${
-                      selectedRank === rank.name
-                        ? `bg-gradient-to-r ${rank.color} text-white border-transparent`
-                        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
-                    }`}
-                  >
-                    <div className="font-medium">{rank.name}</div>
-                    <div className="text-sm">${rank.price}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">
-                Payment Proof (QR Code Screenshot)
-              </label>
-              <div className="relative">
-                <input
-                  type="file"
-                  onChange={handleFileChange}
-                  accept="image/*"
-                  className="hidden"
-                  id="payment-proof"
-                  required
+          {/* Payment Details Section */}
+          <div className="bg-gray-700/50 rounded-lg p-4 border border-gray-600">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <CreditCard size={20} className="text-emerald-400" />
+              Payment Details
+            </h3>
+            <div className="text-center">
+              <p className="text-gray-300 mb-4">Scan the QR code below to pay:</p>
+              <div className="bg-white p-4 rounded-lg inline-block">
+                <img 
+                  src="https://i.imgur.com/xmzqO4S.jpeg" 
+                  alt="Payment QR Code"
+                  className="w-48 h-48 mx-auto"
                 />
-                <label
-                  htmlFor="payment-proof"
-                  className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-3 px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300"
-                >
-                  <Upload size={20} />
-                  {paymentProof ? paymentProof.name : 'Upload QR Code Screenshot'}
-                </label>
               </div>
+              <p className="text-sm text-gray-400 mt-2">Amount: ${selectedRankPrice}</p>
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-4 transition duration-300 disabled:opacity-50 transform hover:scale-[1.02]"
-            >
-              {loading ? 'Processing...' : 'Submit Order'}
-            </button>
-          </form>
-        </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-1">
+              Payment Proof (QR Code Screenshot)
+            </label>
+            <div className="relative">
+              <input
+                type="file"
+                onChange={handleFileChange}
+                accept="image/*"
+                className="hidden"
+                id="payment-proof"
+                required
+              />
+              <label
+                htmlFor="payment-proof"
+                className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-3 px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300"
+              >
+                <Upload size={20} />
+                {paymentProof ? paymentProof.name : 'Upload QR Code Screenshot'}
+              </label>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-4 transition duration-300 disabled:opacity-50 transform hover:scale-[1.02]"
+          >
+            {loading ? 'Processing...' : 'Submit Order'}
+          </button>
+        </form>
       </div>
     </div>
   );

@@ -149,7 +149,7 @@ function Store() {
                   <Check className="text-emerald-400" size={20} />
                   <div>
                     <h4 className="text-white font-semibold">Role Discord Access</h4>
-                    <p className="text-gray-400 text-sm">Exclusive access to VIP areas and features</p>
+                    <p className="text-gray-400 text-sm">Exclusive access to VIP room</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
