@@ -142,9 +142,9 @@ function Store() {
             </p>
             
             {/* Features Card */}
-            <div className="bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-gray-700 max-w-3xl mx-auto mb-16">
+            <div className="bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl border border-gray-700 max-w-3xl mx-auto">
               <h3 className="text-2xl font-bold text-white mb-6">Premium Features</h3>
-              <div className="space-y-4">
+              <div className="space-y-4 mb-8">
                 <div className="flex items-center gap-3 p-3 bg-gray-700/30 rounded-lg">
                   <Check className="text-emerald-400" size={20} />
                   <div>
@@ -174,19 +174,13 @@ function Store() {
                   </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="p-8 bg-gray-800/60 backdrop-blur-sm rounded-2xl shadow-xl border border-gray-700 text-center max-w-3xl mx-auto">
-              <h3 className="text-2xl font-bold text-white mb-4">Custom Rank Packages</h3>
-              <p className="text-gray-300 mb-6 max-w-2xl mx-auto">
-                Looking for something special? Contact us for custom rank packages tailored to your needs.
-              </p>
+              
               <button 
                 onClick={() => setIsOrderModalOpen(true)}
-                className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-6 inline-flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.02]"
+                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-6 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.02]"
               >
                 <ShoppingCart size={18} />
-                Get Custom Package
+                Purchase Now
               </button>
             </div>
           </div>
