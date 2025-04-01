@@ -1,51 +1,42 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import { ShoppingCart, Check, Star } from 'lucide-react';
 import { OrderModal } from '../components/OrderModal';
 
 function Store() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
-  const tenorContainerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // Load the Tenor embed script
-    const script = document.createElement('script');
-    script.src = 'https://tenor.com/embed.js';
-    script.async = true;
-    document.body.appendChild(script);
-
-    return () => {
-      // Clean up the script when component unmounts
-      document.body.removeChild(script);
-    };
-  }, []);
 
   return (
     <div className="min-h-screen relative">
-      {/* Background Container */}
-      <div 
-        className="absolute inset-0 z-0 overflow-hidden"
-        style={{
-          backgroundColor: 'white',
-        }}
-      >
-        {/* Tenor GIF Background */}
-        <div 
-          ref={tenorContainerRef}
-          className="tenor-gif-embed absolute inset-0 w-full h-full opacity-40" 
-          data-postid="16891835739656681544" 
-          data-share-method="host" 
-          data-aspect-ratio="1.76596" 
-          data-width="100%"
+      {/* Background Video */}
+      <div className="absolute inset-0 z-0 overflow-hidden">
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="absolute w-full h-full object-cover"
+          style={{
+            filter: 'brightness(0.5)'
+          }}
         >
-          {/* The Tenor script will replace this div's contents */}
-        </div>
+          <source src="/videos/background.mp4" type="video/mp4" />
+          {/* Fallback to white background if video doesn't load */}
+          <div 
+            className="absolute inset-0 z-0"
+            style={{
+              backgroundColor: 'white',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
+            }}
+          />
+        </video>
       </div>
 
       {/* Content */}
       <div className="relative z-10 min-h-screen flex flex-col">
         {/* Header */}
         <header className="p-6">
-          <h1 className="text-black text-3xl font-bold">STORE</h1>
+          <h1 className="text-white text-3xl font-bold">STORE</h1>
         </header>
 
         {/* Banner */}
