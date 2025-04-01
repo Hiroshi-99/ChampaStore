@@ -27,12 +27,12 @@ function Store() {
 
         {/* Banner */}
         <div className="mx-auto w-full max-w-5xl px-4 mb-8">
-          <div className="relative overflow-hidden rounded-2xl shadow-2xl">
+          <div className="relative w-full overflow-hidden rounded-2xl shadow-2xl">
             {/* Banner Background */}
             <div 
-              className="w-full h-64 md:h-72 bg-cover bg-center"
+              className="w-full h-64 md:h-80 bg-cover bg-center"
               style={{
-                backgroundImage: 'url("/images/banner1.jpg")',
+                backgroundImage: 'url("/src/images/banner1.jpg"), url("https://i.imgur.com/OQJmGoB.jpeg")',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center'
               }}
