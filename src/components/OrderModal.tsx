@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Upload, Info, CreditCard, Mail, User } from 'lucide-react';
+import { X, Upload, Info, CreditCard, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
@@ -24,9 +24,10 @@ const RANKS: RankOption[] = [
   { name: 'CHAMPA', price: 50, color: 'from-orange-500 to-orange-600' }
 ];
 
+const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1326842035621068820/Os7gvio_nXdd6bM-mJ3eCxnoBVwlc7wvkCPpqFZITQMW3swCcTfZVFE45cmX1Aex4KVe'; // Replace with your Discord webhook URL
+
 export function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
   const [platform, setPlatform] = useState<'java' | 'bedrock'>('java');
   const [selectedRank, setSelectedRank] = useState<string>('VIP');
   const [paymentProof, setPaymentProof] = useState<File | null>(null);
@@ -40,6 +41,65 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
     }
   };
 
+  const sendToDiscord = async (orderData: any, paymentProofUrl: string) => {
+    const embed = {
+      title: '🎮 New Order Received!',
+      color: 0x00ff00,
+      fields: [
+        {
+          name: 'Username',
+          value: orderData.username,
+          inline: true
+        },
+        {
+          name: 'Platform',
+          value: orderData.platform.toUpperCase(),
+          inline: true
+        },
+        {
+          name: 'Rank',
+          value: orderData.rank,
+          inline: true
+        },
+        {
+          name: 'Price',
+          value: `$${orderData.price}`,
+          inline: true
+        },
+        {
+          name: 'Status',
+          value: 'Pending',
+          inline: true
+        }
+      ],
+      image: {
+        url: paymentProofUrl
+      },
+      timestamp: new Date().toISOString()
+    };
+
+    const webhookBody = {
+      embeds: [embed]
+    };
+
+    try {
+      const response = await fetch(DISCORD_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(webhookBody),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to send Discord notification');
+      }
+    } catch (error) {
+      console.error('Error sending Discord notification:', error);
+      throw error;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -47,7 +107,6 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
     try {
       if (!paymentProof) throw new Error('Please upload payment proof');
       if (!username.trim()) throw new Error('Please enter your username');
-      if (!email.trim()) throw new Error('Please enter your email');
 
       const selectedRankOption = RANKS.find(rank => rank.name === selectedRank);
       if (!selectedRankOption) throw new Error('Please select a valid rank');
@@ -61,22 +120,30 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
       if (uploadError) throw uploadError;
 
+      // Get the public URL for the uploaded file
+      const { data: { publicUrl } } = supabase.storage
+        .from('payment-proofs')
+        .getPublicUrl(`guest/${fileName}`);
+
       // Create order
-      const { error: orderError } = await supabase.from('orders').insert({
+      const orderData = {
         username: username.trim(),
-        email: email.trim(),
         platform,
         rank: selectedRank,
         price: selectedRankOption.price,
         payment_proof: data.path,
         status: 'pending'
-      });
+      };
+
+      const { error: orderError } = await supabase.from('orders').insert(orderData);
 
       if (orderError) throw orderError;
 
-      toast.success('Order submitted successfully! We will process your order and send the rank details to your email.');
+      // Send order information to Discord
+      await sendToDiscord(orderData, publicUrl);
+
+      toast.success('Order submitted successfully! We will process your order and send the rank details to your Discord.');
       setUsername('');
-      setEmail('');
       setPlatform('java');
       setSelectedRank('VIP');
       setPaymentProof(null);
@@ -217,24 +284,6 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1 flex items-center gap-2">
-                <Mail size={16} className="text-emerald-400" />
-                Email Address
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400"
-                required
-                placeholder="Enter your email address"
-              />
-              <p className="text-sm text-gray-400 mt-1">
-                We'll send your rank details to this email
-              </p>
             </div>
 
             <div>
