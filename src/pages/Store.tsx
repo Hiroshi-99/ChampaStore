@@ -32,13 +32,12 @@ function Store() {
             <div 
               className="w-full h-64 md:h-80 bg-cover bg-center"
               style={{
-                backgroundImage: 'url("https://i.imgur.com/OQJmGoB.jpeg")',
+                backgroundImage: 'url("/src/images/banner1.jpg")',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center'
               }}
             >
-              {/* Gradient Overlay */}
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-900/80 to-blue-900/60"></div>
+              {/* Remove Gradient Overlay */}
               
               {/* Floating Particles/Stars */}
               <div className="absolute inset-0 opacity-50">
