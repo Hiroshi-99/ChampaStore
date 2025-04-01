@@ -32,9 +32,10 @@ function Store() {
             <img 
               src="/images/banner1.jpg" 
               alt="Champa Store Banner" 
-              className="w-full object-cover object-center"
+              className="w-full h-auto object-cover object-center"
               style={{
-                maxHeight: "200px",
+                maxHeight: "400px",
+                aspectRatio: "1920/909"
               }}
             />
           </div>
