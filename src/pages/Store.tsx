@@ -1,9 +1,22 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ShoppingCart, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { ShoppingCart, Check, ChevronLeft, ChevronRight, Server } from 'lucide-react';
 import { OrderModal } from '../components/OrderModal';
+import { ServerStatusModal } from '../components/ServerStatusModal';
+
+// Memoized feature item component for better performance
+const FeatureItem = memo(({ icon: Icon, title, description }: { icon: React.ElementType, title: string, description: string }) => (
+  <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+    <Icon className="text-emerald-400 flex-shrink-0" size={18} />
+    <div>
+      <h4 className="text-white font-semibold text-sm sm:text-base">{title}</h4>
+      <p className="text-gray-400 text-xs sm:text-sm">{description}</p>
+    </div>
+  </div>
+));
 
 const Store: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState<boolean>(false);
+  const [isServerStatusModalOpen, setIsServerStatusModalOpen] = useState<boolean>(false);
   const [currentSlide, setCurrentSlide] = useState<number>(0);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const touchStartX = useRef<number>(0);
@@ -94,6 +107,14 @@ const Store: React.FC = () => {
     };
   }, [handleKeyDown]);
 
+  // Feature items data
+  const featureItems = [
+    { icon: Check, title: "Role Discord Access", description: "Exclusive access to VIP room" },
+    { icon: Check, title: "Special Commands", description: "Access to special commands and abilities" },
+    { icon: Check, title: "Priority Support", description: "Get priority access to support services" },
+    { icon: Check, title: "Custom Perks", description: "Unique perks based on your rank level" }
+  ];
+
   return (
     <div className="min-h-screen relative">
       {/* Background Video */}
@@ -128,6 +149,24 @@ const Store: React.FC = () => {
             />
             <h1 className="text-white text-xl sm:text-2xl font-bold tracking-wider">CHAMPA STORE</h1>
           </div>
+          
+          {/* Join Champa Now Button */}
+          <button
+            onClick={() => setIsServerStatusModalOpen(true)}
+            className="hidden sm:flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            <Server size={18} />
+            Join Champa Now!
+          </button>
+          
+          {/* Mobile Join Button */}
+          <button
+            onClick={() => setIsServerStatusModalOpen(true)}
+            className="sm:hidden flex items-center justify-center bg-emerald-600 hover:bg-emerald-700 text-white w-10 h-10 rounded-lg transition-colors"
+            aria-label="Join Champa Now"
+          >
+            <Server size={18} />
+          </button>
         </header>
 
         {/* Banner */}
@@ -161,6 +200,7 @@ const Store: React.FC = () => {
                       src={image}
                       alt={`Banner ${index + 1}`}
                       className="w-full h-full object-cover"
+                      loading={index === 0 ? "eager" : "lazy"} // Optimization: lazy load non-initial images
                     />
                     <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-transparent"></div>
                   </div>
@@ -222,6 +262,15 @@ const Store: React.FC = () => {
               <p className="text-white/90 text-sm sm:text-lg md:text-xl max-w-md">
                 Enhance your gameplay experience with our premium ranks
               </p>
+              
+              {/* Mobile CTA */}
+              <button
+                onClick={() => setIsServerStatusModalOpen(true)}
+                className="sm:hidden mt-4 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors self-start"
+              >
+                <Server size={16} />
+                Join Now
+              </button>
             </div>
           </div>
         </div>
@@ -238,34 +287,14 @@ const Store: React.FC = () => {
             <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 shadow-lg sm:shadow-xl border border-gray-700 max-w-3xl mx-auto">
               <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Premium Features</h3>
               <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
-                <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg">
-                  <Check className="text-emerald-400 flex-shrink-0" size={18} />
-                  <div>
-                    <h4 className="text-white font-semibold text-sm sm:text-base">Role Discord Access</h4>
-                    <p className="text-gray-400 text-xs sm:text-sm">Exclusive access to VIP room</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg">
-                  <Check className="text-emerald-400 flex-shrink-0" size={18} />
-                  <div>
-                    <h4 className="text-white font-semibold text-sm sm:text-base">Special Commands</h4>
-                    <p className="text-gray-400 text-xs sm:text-sm">Access to special commands and abilities</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg">
-                  <Check className="text-emerald-400 flex-shrink-0" size={18} />
-                  <div>
-                    <h4 className="text-white font-semibold text-sm sm:text-base">Priority Support</h4>
-                    <p className="text-gray-400 text-xs sm:text-sm">Get priority access to support services</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg">
-                  <Check className="text-emerald-400 flex-shrink-0" size={18} />
-                  <div>
-                    <h4 className="text-white font-semibold text-sm sm:text-base">Custom Perks</h4>
-                    <p className="text-gray-400 text-xs sm:text-sm">Unique perks based on your rank level</p>
-                  </div>
-                </div>
+                {featureItems.map((item, index) => (
+                  <FeatureItem 
+                    key={index}
+                    icon={item.icon}
+                    title={item.title}
+                    description={item.description}
+                  />
+                ))}
               </div>
               
               <button 
@@ -299,8 +328,13 @@ const Store: React.FC = () => {
         isOpen={isOrderModalOpen}
         onClose={() => setIsOrderModalOpen(false)}
       />
+
+      <ServerStatusModal
+        isOpen={isServerStatusModalOpen}
+        onClose={() => setIsServerStatusModalOpen(false)}
+      />
     </div>
   );
-}
+};
 
 export default Store;
