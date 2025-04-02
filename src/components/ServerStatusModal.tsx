@@ -354,9 +354,6 @@ export const ServerStatusModal: React.FC<ServerStatusModalProps> = ({ isOpen, on
         <div className="border-t border-gray-700 p-4">
           {serverType === 'bedrock' ? (
             <div className="flex flex-col gap-3">
-              <p className="text-xs text-center text-gray-400">
-                Due to platform restrictions, direct join from browser is only supported for Java Edition.
-              </p>
               <button 
                 className={`w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-2.5 px-4 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.02] font-medium ${!serverData.online && 'opacity-50 cursor-not-allowed'}`}
               onClick={() => {
@@ -365,7 +362,7 @@ export const ServerStatusModal: React.FC<ServerStatusModalProps> = ({ isOpen, on
               disabled={!serverData.online}
              >
               <ExternalLink size={18} />
-              Join Java Server Now
+              Join Server Now
             </button>
             </div>
           ) : (
@@ -377,7 +374,7 @@ export const ServerStatusModal: React.FC<ServerStatusModalProps> = ({ isOpen, on
               disabled={!serverData.online}
             >
               <ExternalLink size={18} />
-              Join Java Server Now
+              Join Server Now
             </button>
           )}
         </div>
