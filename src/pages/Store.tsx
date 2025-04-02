@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ShoppingCart, Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { OrderModal } from '../components/OrderModal';
 
-function Store() {
-  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
-  const [currentSlide, setCurrentSlide] = useState(0);
+const Store: React.FC = () => {
+  const [isOrderModalOpen, setIsOrderModalOpen] = useState<boolean>(false);
+  const [currentSlide, setCurrentSlide] = useState<number>(0);
+  const [isPaused, setIsPaused] = useState<boolean>(false);
+  const touchStartX = useRef<number>(0);
+  const touchEndX = useRef<number>(0);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   const bannerImages = [
     "https://i.imgur.com/8WJ8noJ.jpeg",
@@ -12,21 +16,83 @@ function Store() {
     "https://i.imgur.com/OQJmGoB.jpeg"
   ];
 
+  // Add animation styles to document head
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % bannerImages.length);
-    }, 5000); // Change slide every 5 seconds
-
-    return () => clearInterval(timer);
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
+      @keyframes progress-animation {
+        0% { width: 0; }
+        100% { width: 100%; }
+      }
+    `;
+    document.head.appendChild(styleEl);
+    
+    return () => {
+      document.head.removeChild(styleEl);
+    };
   }, []);
 
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % bannerImages.length);
+  const nextSlide = useCallback(() => {
+    setCurrentSlide((prev: number) => (prev + 1) % bannerImages.length);
+  }, [bannerImages.length]);
+
+  const prevSlide = useCallback(() => {
+    setCurrentSlide((prev: number) => (prev - 1 + bannerImages.length) % bannerImages.length);
+  }, [bannerImages.length]);
+
+  const goToSlide = useCallback((index: number) => {
+    setCurrentSlide(index);
+  }, []);
+
+  // Handle keyboard navigation
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'ArrowLeft') {
+      prevSlide();
+    } else if (e.key === 'ArrowRight') {
+      nextSlide();
+    }
+  }, [nextSlide, prevSlide]);
+
+  // Handle touch events
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
   };
 
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + bannerImages.length) % bannerImages.length);
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
   };
+
+  const handleTouchEnd = () => {
+    const touchDiff = touchStartX.current - touchEndX.current;
+    
+    // Only register as swipe if moved more than 50px
+    if (Math.abs(touchDiff) > 50) {
+      if (touchDiff > 0) {
+        nextSlide(); // Swipe left
+      } else {
+        prevSlide(); // Swipe right
+      }
+    }
+  };
+
+  useEffect(() => {
+    // Auto-advance slides when not paused
+    if (!isPaused) {
+      const timer = setInterval(() => {
+        nextSlide();
+      }, 5000); // Change slide every 5 seconds
+
+      return () => clearInterval(timer);
+    }
+  }, [isPaused, nextSlide]);
+
+  // Add and remove event listeners for keyboard navigation
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [handleKeyDown]);
 
   return (
     <div className="min-h-screen relative">
@@ -66,11 +132,22 @@ function Store() {
 
         {/* Banner */}
         <div className="mx-auto w-full max-w-6xl px-3 sm:px-4 mt-3 sm:mt-4 mb-4 sm:mb-8">
-          <div className="relative w-full overflow-hidden rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl">
+          <div 
+            className="relative w-full overflow-hidden rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+            ref={sliderRef}
+          >
             {/* Banner Images */}
             <div 
-              className="relative w-full h-[200px] sm:h-[300px] md:h-[400px] transition-transform duration-500 ease-out"
+              className="relative w-full h-[200px] sm:h-[300px] md:h-[400px] transition-all duration-500 ease-out"
               style={{ transform: `translateX(-${currentSlide * 100}%)` }}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              role="region"
+              aria-label="Banner slideshow"
+              tabIndex={0}
             >
               <div className="absolute inset-0 flex">
                 {bannerImages.map((image, index) => (
@@ -78,6 +155,7 @@ function Store() {
                     key={index}
                     className="relative w-full h-full flex-shrink-0"
                     style={{ left: `${index * 100}%` }}
+                    aria-hidden={currentSlide !== index}
                   >
                     <img 
                       src={image}
@@ -90,10 +168,21 @@ function Store() {
               </div>
             </div>
 
+            {/* Progress bar */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-white/20">
+              <div 
+                className="h-full bg-emerald-500 transition-all duration-300"
+                style={{ 
+                  width: isPaused ? '0%' : '100%',
+                  animation: isPaused ? 'none' : 'progress-animation 5s linear infinite',
+                }}
+              />
+            </div>
+
             {/* Navigation Buttons */}
             <button 
               onClick={prevSlide}
-              className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 sm:p-2 rounded-full transition-colors"
+              className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 sm:p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500"
               aria-label="Previous slide"
             >
               <ChevronLeft size={20} className="sm:hidden" />
@@ -101,7 +190,7 @@ function Store() {
             </button>
             <button 
               onClick={nextSlide}
-              className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 sm:p-2 rounded-full transition-colors"
+              className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 sm:p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500"
               aria-label="Next slide"
             >
               <ChevronRight size={20} className="sm:hidden" />
@@ -113,13 +202,14 @@ function Store() {
               {bannerImages.map((_, index) => (
                 <button
                   key={index}
-                  onClick={() => setCurrentSlide(index)}
-                  className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full transition-all ${
+                  onClick={() => goToSlide(index)}
+                  className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
                     currentSlide === index 
                       ? 'bg-white sm:w-4 w-3' 
                       : 'bg-white/50 hover:bg-white/75'
                   }`}
                   aria-label={`Go to slide ${index + 1}`}
+                  aria-current={currentSlide === index ? 'true' : 'false'}
                 />
               ))}
             </div>

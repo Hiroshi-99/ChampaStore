@@ -284,7 +284,7 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
         // Continue with success even if Discord notification fails
       }
 
-      toast.success('Order submitted successfully! We will process your order and send the rank details to your Discord.');
+      toast.success('Order submitted successfully! We will process your order.');
       setUsername('');
       setPlatform('java');
       setSelectedRank('VIP');
