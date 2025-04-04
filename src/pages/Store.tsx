@@ -280,31 +280,78 @@ const Store: React.FC = () => {
           <div className="max-w-6xl mx-auto">
             <h2 className="text-3xl sm:text-4xl md:text-5xl text-white font-bold text-center mb-2 sm:mb-4">Champa Economy</h2>
             <p className="text-gray-300 text-center mb-6 sm:mb-12 max-w-2xl mx-auto text-sm sm:text-base md:text-lg">
-              Experience the power of our premium ranks with exclusive features and benefits
+              Experience the power of our premium ranks and get your own Minecraft account
             </p>
             
-            {/* Features Card */}
-            <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 shadow-lg sm:shadow-xl border border-gray-700 max-w-3xl mx-auto">
-              <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Premium Features</h3>
-              <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
-                {featureItems.map((item, index) => (
-                  <FeatureItem 
-                    key={index}
-                    icon={item.icon}
-                    title={item.title}
-                    description={item.description}
-                  />
-                ))}
+            {/* Features Grid */}
+            <div className="grid md:grid-cols-2 gap-6 max-w-6xl mx-auto">
+              {/* Premium Features Card */}
+              <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 shadow-lg sm:shadow-xl border border-gray-700">
+                <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Premium Features</h3>
+                <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
+                  {featureItems.map((item, index) => (
+                    <FeatureItem 
+                      key={index}
+                      icon={item.icon}
+                      title={item.title}
+                      description={item.description}
+                    />
+                  ))}
+                </div>
+                
+                <button 
+                  onClick={() => setIsOrderModalOpen(true)}
+                  className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-2.5 sm:py-3 px-4 sm:px-6 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.02] text-sm sm:text-base font-medium"
+                >
+                  <ShoppingCart size={16} className="sm:hidden" />
+                  <ShoppingCart size={18} className="hidden sm:block" />
+                  Purchase Rank
+                </button>
               </div>
-              
-              <button 
-                onClick={() => setIsOrderModalOpen(true)}
-                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-2.5 sm:py-3 px-4 sm:px-6 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.02] text-sm sm:text-base font-medium"
-              >
-                <ShoppingCart size={16} className="sm:hidden" />
-                <ShoppingCart size={18} className="hidden sm:block" />
-                Purchase Now
-              </button>
+
+              {/* Minecraft Account Card */}
+              <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 shadow-lg sm:shadow-xl border border-gray-700">
+                <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Minecraft Accounts</h3>
+                <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
+                  <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+                    <Check className="text-emerald-400 flex-shrink-0" size={18} />
+                    <div>
+                      <h4 className="text-white font-semibold text-sm sm:text-base">Full Access Account</h4>
+                      <p className="text-gray-400 text-xs sm:text-sm">Original Minecraft account with full access</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+                    <Check className="text-emerald-400 flex-shrink-0" size={18} />
+                    <div>
+                      <h4 className="text-white font-semibold text-sm sm:text-base">Email Access</h4>
+                      <p className="text-gray-400 text-xs sm:text-sm">Complete email access included</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+                    <Check className="text-emerald-400 flex-shrink-0" size={18} />
+                    <div>
+                      <h4 className="text-white font-semibold text-sm sm:text-base">Instant Delivery</h4>
+                      <p className="text-gray-400 text-xs sm:text-sm">Get your account details instantly after purchase</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+                    <Check className="text-emerald-400 flex-shrink-0" size={18} />
+                    <div>
+                      <h4 className="text-white font-semibold text-sm sm:text-base">24/7 Support</h4>
+                      <p className="text-gray-400 text-xs sm:text-sm">Full support for any issues or questions</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <button 
+                  onClick={() => setIsOrderModalOpen(true)}
+                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg py-2.5 sm:py-3 px-4 sm:px-6 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.02] text-sm sm:text-base font-medium"
+                >
+                  <ShoppingCart size={16} className="sm:hidden" />
+                  <ShoppingCart size={18} className="hidden sm:block" />
+                  Buy Account
+                </button>
+              </div>
             </div>
           </div>
         </main>
