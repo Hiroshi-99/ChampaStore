@@ -344,7 +344,7 @@ const Store: React.FC = () => {
                 </div>
                 
                 <button 
-                  onClick={() => setIsOrderModalOpen(true)}
+                  onClick={() => window.open('https://cipher88.store', '_blank')}
                   className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg py-2.5 sm:py-3 px-4 sm:px-6 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.02] text-sm sm:text-base font-medium"
                 >
                   <ShoppingCart size={16} className="sm:hidden" />
