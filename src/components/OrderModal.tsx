@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Upload, Info, CreditCard, User, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
+import { sanitizeInput, sanitizeDiscordContent } from '../utils/sanitize';
 
 interface OrderModalProps {
   isOpen: boolean;
@@ -62,6 +63,11 @@ const RANKS: RankOption[] = [
 
 const DISCORD_WEBHOOK_URL = import.meta.env.VITE_DISCORD_WEBHOOK_URL;
 
+// Rate limiting configuration
+const RATE_LIMIT_DURATION = 60 * 1000; // 1 minute
+const MAX_ATTEMPTS = 3;
+const rateLimitStore = new Map<string, { attempts: number; timestamp: number }>();
+
 export function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const [username, setUsername] = useState('');
   const [platform, setPlatform] = useState<'java' | 'bedrock'>('java');
@@ -70,6 +76,29 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
+
+  // Check rate limit
+  const checkRateLimit = (identifier: string): boolean => {
+    const now = Date.now();
+    const userRateLimit = rateLimitStore.get(identifier);
+
+    if (!userRateLimit) {
+      rateLimitStore.set(identifier, { attempts: 1, timestamp: now });
+      return true;
+    }
+
+    if (now - userRateLimit.timestamp > RATE_LIMIT_DURATION) {
+      rateLimitStore.set(identifier, { attempts: 1, timestamp: now });
+      return true;
+    }
+
+    if (userRateLimit.attempts >= MAX_ATTEMPTS) {
+      return false;
+    }
+
+    userRateLimit.attempts += 1;
+    return true;
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -99,27 +128,27 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
       const webhookContent = {
         username: "Champa Store Bot",
-        avatar_url: "https://i.imgur.com/R66g1Pe.jpg", // You can replace this with your logo URL
+        avatar_url: "https://i.imgur.com/R66g1Pe.jpg",
         content: "🎮 **NEW RANK ORDER!** 🎮",
         embeds: [
           {
-            title: `New ${orderData.rank} Rank Order`,
+            title: `New ${sanitizeInput(orderData.rank)} Rank Order`,
             color: embedColor,
             description: `A new order has been received and is awaiting processing.`,
             fields: [
               {
                 name: "👤 Customer",
-                value: `\`${orderData.username}\``,
+                value: `\`${sanitizeInput(orderData.username)}\``,
                 inline: true
               },
               {
                 name: "🎮 Platform",
-                value: `\`${orderData.platform.toUpperCase()}\``,
+                value: `\`${sanitizeInput(orderData.platform.toUpperCase())}\``,
                 inline: true
               },
               {
                 name: "⭐ Rank",
-                value: `\`${orderData.rank}\``,
+                value: `\`${sanitizeInput(orderData.rank)}\``,
                 inline: true
               },
               {
@@ -134,18 +163,18 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
               }
             ],
             thumbnail: {
-              url: "https://i.imgur.com/R66g1Pe.jpg"  // You can replace this with your logo URL
+              url: "https://i.imgur.com/R66g1Pe.jpg"
             },
             footer: {
               text: "Champa Store Order System",
-              icon_url: "https://i.imgur.com/R66g1Pe.jpg"  // You can replace this with your logo URL
+              icon_url: "https://i.imgur.com/R66g1Pe.jpg"
             },
             timestamp: new Date().toISOString()
           }
         ]
       };
 
-      // Add the payment proof image as a separate embed to ensure it displays properly
+      // Add the payment proof image as a separate embed
       if (paymentProofUrl) {
         webhookContent.embeds.push({
           title: "💳 Payment Proof",
@@ -155,6 +184,9 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
           }
         });
       }
+
+      // Sanitize the entire webhook content
+      const sanitizedContent = sanitizeDiscordContent(webhookContent);
       
       // Make the request to Discord webhook
       const response = await fetch(DISCORD_WEBHOOK_URL, {
@@ -162,7 +194,7 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(webhookContent),
+        body: JSON.stringify(sanitizedContent),
       });
 
       if (!response.ok) {
@@ -184,13 +216,24 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
     setLoading(true);
 
     try {
+      // Rate limit check using IP or username as identifier
+      const identifier = username.toLowerCase(); // In production, use IP address
+      if (!checkRateLimit(identifier)) {
+        throw new Error('Too many attempts. Please try again later.');
+      }
+
+      // Input validation
       if (!paymentProof) throw new Error('Please upload payment proof');
       if (!username.trim()) throw new Error('Please enter your username');
+      if (username.length > 50) throw new Error('Username is too long');
+      if (!/^[a-zA-Z0-9_]{3,16}$/.test(username.trim())) {
+        throw new Error('Invalid Minecraft username format');
+      }
 
       const selectedRankOption = RANKS.find(rank => rank.name === selectedRank);
       if (!selectedRankOption) throw new Error('Please select a valid rank');
 
-      // Validate file type
+      // File validation
       if (!paymentProof.type.startsWith('image/')) {
         throw new Error('Please upload a valid image file');
       }
@@ -200,9 +243,15 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
         throw new Error('Image size should be less than 5MB');
       }
 
+      // Validate file type more strictly
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(paymentProof.type)) {
+        throw new Error('Please upload a JPG, PNG, or WebP image');
+      }
+
       // Create the file path with proper formatting for Supabase
-      const timestamp = new Date().getTime();
-      const randomString = Math.random().toString(36).substring(2, 10);
+      const timestamp = Date.now();
+      const randomString = crypto.randomUUID().slice(0, 8);
       const fileName = `${timestamp}_${randomString}.jpg`;
       const filePath = `guest/${fileName}`;
       
@@ -228,7 +277,6 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
       const supabaseUrl = 'https://feaxosxwaajfagfjkmrx.supabase.co';
       const publicUrl = `${supabaseUrl}/storage/v1/object/public/payment-proofs/${filePath}`;
       
-      console.log('Payment proof URL:', publicUrl);
 
       // Create order with all required fields
       const orderData = {
