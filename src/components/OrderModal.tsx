@@ -60,7 +60,7 @@ const RANKS: RankOption[] = [
   }
 ];
 
-const DISCORD_WEBHOOK_URL = 'https://discord.com/api/webhooks/1326842035621068820/Os7gvio_nXdd6bM-mJ3eCxnoBVwlc7wvkCPpqFZITQMW3swCcTfZVFE45cmX1Aex4KVe'; // Replace with your Discord webhook URL
+const DISCORD_WEBHOOK_URL = import.meta.env.VITE_DISCORD_WEBHOOK_URL;
 
 export function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const [username, setUsername] = useState('');
