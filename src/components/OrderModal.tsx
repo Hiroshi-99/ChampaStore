@@ -275,7 +275,6 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const publicUrl = `${supabaseUrl}/storage/v1/object/public/payment-proofs/${filePath}`;
       
-      console.log('Payment proof URL:', publicUrl);
 
       // Create order with all required fields
       const orderData = {
