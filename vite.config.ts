@@ -7,4 +7,11 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  server: {
+    port: 3000,
+  },
+  // Ensure environment variables are properly loaded
+  define: {
+    'process.env': process.env
+  }
 });
