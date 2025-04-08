@@ -202,8 +202,6 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
         console.error('Discord webhook error:', errorText);
         throw new Error(`Failed to send Discord notification: ${response.status} ${response.statusText}`);
       }
-      
-      console.log('Discord webhook sent successfully');
     } catch (error) {
       console.error('Error sending Discord notification:', error);
       // Don't throw error to prevent blocking the order process
@@ -274,9 +272,10 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
       }
 
       // Construct the absolute public URL for the image manually to ensure it works
-      const supabaseUrl = 'https://feaxosxwaajfagfjkmrx.supabase.co';
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const publicUrl = `${supabaseUrl}/storage/v1/object/public/payment-proofs/${filePath}`;
       
+      console.log('Payment proof URL:', publicUrl);
 
       // Create order with all required fields
       const orderData = {

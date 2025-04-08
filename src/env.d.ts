@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_DISCORD_WEBHOOK_URL: string
+  readonly VITE_SUPABASE_URL: string
   // Add other environment variables here as needed
 }
 
