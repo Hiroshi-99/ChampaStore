@@ -1,6 +1,9 @@
-import React, { useRef, useCallback, memo, useState, useEffect } from 'react';
-import { X, Download, Check, User, CreditCard, Copy, ExternalLink } from 'lucide-react';
+import React, { useRef, useCallback, memo, useState, useEffect, useMemo } from 'react';
+import { X, Check, User, CreditCard, ImageIcon, ZoomIn, Eye, Shield, Printer } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
+import toast from 'react-hot-toast';
+import { Dialog, DialogContent } from "../ui/dialog";
+import { Button } from "../ui/button";
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -11,46 +14,180 @@ interface ReceiptModalProps {
     rank: string;
     price: number;
     created_at: string;
+    payment_proof?: string;
     orderId?: string;
   };
 }
 
-// Helper component for receipt detail row
-const DetailRow = memo(({ label, value, highlighted = false }: { 
-  label: string; 
-  value: string | React.ReactNode;
-  highlighted?: boolean;
+// Memoized receipt detail row component
+const ReceiptDetailRow = memo(({
+  label,
+  value,
+  icon,
+  isHighlighted = false,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  isHighlighted?: boolean;
 }) => (
-  <div className="flex items-center justify-between text-gray-800 mb-2">
-    <span className="text-sm text-gray-600">{label}:</span>
-    <span className={`font-medium ${highlighted ? 'text-emerald-600' : ''}`}>{value}</span>
+  <div className={`flex items-center ${isHighlighted ? 'mt-4 pt-4 border-t border-gray-700' : 'my-3'}`}>
+    <div className="text-gray-400 mr-3">{icon}</div>
+    <div>
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className={`${isHighlighted ? 'text-white font-semibold' : 'text-gray-300'}`}>
+        {value}
+      </div>
+    </div>
   </div>
 ));
+
+// Memoized payment proof component
+const PaymentProofPreview = memo(({ imageUrl }: { imageUrl: string }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
+
+  const handleLoad = useCallback(() => {
+    setIsLoading(false);
+  }, []);
+
+  const handleError = useCallback(() => {
+    setIsLoading(false);
+    setError(true);
+  }, []);
+
+  const toggleZoom = useCallback(() => {
+    setIsZoomed(prev => !prev);
+  }, []);
+
+  if (!imageUrl) return null;
+
+  return (
+    <div className="mt-4 pt-4 border-t border-gray-700">
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-gray-500 mb-2">Payment Proof</div>
+        {!error && !isLoading && (
+          <button 
+            onClick={toggleZoom} 
+            className="text-xs text-emerald-500 hover:text-emerald-400 flex items-center gap-1"
+            title={isZoomed ? "Close preview" : "View larger image"}
+          >
+            {isZoomed ? <X size={14} /> : <ZoomIn size={14} />}
+            {isZoomed ? "Close" : "Enlarge"}
+          </button>
+        )}
+      </div>
+      <div className={`relative bg-gray-900/50 rounded-lg overflow-hidden ${isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'}`} onClick={!error && !isLoading ? toggleZoom : undefined}>
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-800/50">
+            <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        )}
+        {error ? (
+          <div className="p-4 text-sm text-gray-400 text-center">
+            <ImageIcon className="mx-auto mb-2 opacity-50" size={24} />
+            Could not load payment proof image
+          </div>
+        ) : (
+          <img 
+            src={imageUrl} 
+            alt="Payment Proof" 
+            className={`w-full h-auto object-contain transition-all duration-300 ${isZoomed ? 'max-h-[400px]' : 'max-h-[200px]'}`}
+            onLoad={handleLoad}
+            onError={handleError}
+          />
+        )}
+      </div>
+      
+      {/* Fullscreen modal for zoomed image */}
+      {isZoomed && !error && !isLoading && (
+        <div 
+          className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4"
+          onClick={toggleZoom}
+        >
+          <button 
+            onClick={toggleZoom}
+            className="absolute top-4 right-4 bg-gray-800/70 hover:bg-gray-700 p-2 rounded-full text-white"
+            aria-label="Close preview"
+          >
+            <X size={20} />
+          </button>
+          <img 
+            src={imageUrl} 
+            alt="Payment Proof" 
+            className="max-w-full max-h-[90vh] object-contain"
+          />
+        </div>
+      )}
+    </div>
+  );
+});
 
 // Optimized Receipt Modal component
 export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
-  const [copySuccess, setCopySuccess] = useState<boolean>(false);
   const [fadeIn, setFadeIn] = useState<boolean>(false);
+  const [isPrinting, setIsPrinting] = useState(false);
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
   
+  // Destructure orderData with default empty object for null/undefined cases
+  const { 
+    username = '', 
+    platform = '', 
+    rank = '', 
+    price = 0, 
+    orderId: order_id = '', 
+    created_at: time = '', 
+    payment_proof = '' 
+  } = useMemo(() => orderData || {}, [orderData]);
+
   // Format date once when component renders
-  const formattedDate = useCallback(() => {
-    const orderDate = new Date(orderData.created_at);
-    return orderDate.toLocaleString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
+  const formattedTime = useMemo(() => {
+    if (!time) return '';
+    const date = new Date(time);
+    return date.toLocaleString('en-US', {
+      month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
     });
-  }, [orderData.created_at]);
+  }, [time]);
 
   // Generate receipt number only once
-  const receiptNumber = useCallback(() => {
+  const receiptNumber = useMemo(() => {
     return orderData.orderId || `CS-${Date.now().toString().slice(-8)}`;
   }, [orderData.orderId]);
   
+  // Get payment proof URL if available
+  const paymentProofUrl = useMemo(() => {
+    if (!payment_proof) return '';
+    
+    // If it's already a full URL, use it directly
+    if (payment_proof.startsWith('http')) {
+      return payment_proof;
+    }
+    
+    // Otherwise, construct the URL using the Supabase pattern
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    return `${supabaseUrl}/storage/v1/object/public/payment-proofs/${payment_proof}`;
+  }, [payment_proof]);
+  
+  // Enhanced entry animation
+  useEffect(() => {
+    if (isOpen) {
+      // Delay fade-in for smoother entry 
+      const timer = setTimeout(() => setFadeIn(true), 50);
+      return () => clearTimeout(timer);
+    } else {
+      setFadeIn(false);
+      // Reset image viewer state when modal closes
+      setIsImageViewerOpen(false);
+    }
+  }, [isOpen]);
+
   // Custom print function that doesn't rely on useReactToPrint
   const handlePrintReceipt = useCallback(() => {
     if (!receiptRef.current) return;
@@ -67,7 +204,7 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
       <!DOCTYPE html>
       <html>
         <head>
-          <title>ChampaStore Receipt - ${orderData.username}</title>
+          <title>ChampaStore Receipt - ${username}</title>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <style>
@@ -121,20 +258,18 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
     `);
     
     printWindow.document.close();
-  }, [orderData.username]);
-
-  // Copy server information to clipboard
-  const copyServerInfo = useCallback(() => {
-    navigator.clipboard.writeText('champamc.store').then(() => {
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    });
-  }, []);
+  }, [username]);
 
   // Close modal on escape key
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        if (isImageViewerOpen) {
+          setIsImageViewerOpen(false);
+        } else {
+          onClose();
+        }
+      }
     };
     
     if (isOpen) {
@@ -146,24 +281,93 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
     return () => {
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isImageViewerOpen]);
   
+  // Handle print functionality
+  const handlePrint = useCallback(() => {
+    if (!receiptRef.current) return;
+    
+    setIsPrinting(true);
+    
+    // Add print styling specific class
+    document.body.classList.add('printing-receipt');
+    
+    try {
+      const printContent = receiptRef.current.innerHTML;
+      const printWindow = window.open('', '_blank');
+      
+      if (!printWindow) {
+        throw new Error('Could not open print window');
+      }
+      
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Receipt #${order_id}</title>
+            <style>
+              body { 
+                font-family: system-ui, -apple-system, sans-serif;
+                background: white;
+                color: black;
+                padding: 2rem;
+                max-width: 800px;
+                margin: 0 auto;
+              }
+              .receipt-header {
+                text-align: center;
+                margin-bottom: 1.5rem;
+                border-bottom: 1px solid #ccc;
+                padding-bottom: 1rem;
+              }
+              .receipt-row {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 0.5rem;
+                padding: 0.25rem 0;
+              }
+              .receipt-row:not(:last-child) {
+                border-bottom: 1px dashed #eee;
+              }
+              img { max-width: 100%; max-height: 300px; }
+              .payment-proof { margin-top: 2rem; border-top: 1px solid #ccc; padding-top: 1rem; }
+              .payment-proof-title { font-size: 0.875rem; color: #555; margin-bottom: 0.5rem; }
+              @media print {
+                body { padding: 0; }
+                button { display: none; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="receipt-content">
+              ${printContent}
+            </div>
+            <script>
+              window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };
+            </script>
+          </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error('Print error:', error);
+    } finally {
+      // Cleanup
+      document.body.classList.remove('printing-receipt');
+      setIsPrinting(false);
+    }
+  }, [order_id, receiptRef]);
+
+  // Open payment proof in full image viewer
+  const openImageViewer = useCallback(() => {
+    if (paymentProofUrl) {
+      setIsImageViewerOpen(true);
+    }
+  }, [paymentProofUrl]);
+
   if (!isOpen) return null;
 
   return (
-    <div 
-      className={`fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-hidden transition-opacity duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="receipt-title"
-    >
-      <div 
-        className="bg-gray-800/95 rounded-2xl p-4 sm:p-6 md:p-8 w-full max-w-lg m-2 sm:m-4 relative max-h-[90vh] overflow-y-auto transform transition-transform duration-300 ease-out"
-        style={{ 
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          transform: fadeIn ? 'translateY(0)' : 'translateY(20px)'
-        }}
-      >
+    <Dialog open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
+      <DialogContent className={`bg-gray-800/95 p-4 sm:p-6 md:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto border-gray-700 transform transition-all duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
         <button
           onClick={onClose}
           className="absolute right-3 top-3 sm:right-4 sm:top-4 text-gray-400 hover:text-white transition-colors"
@@ -191,26 +395,43 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
           </div>
           
           <div className="mb-4 pb-4 border-b border-gray-200">
-            <DetailRow label="Receipt ID" value={receiptNumber()} />
-            <DetailRow label="Date" value={formattedDate()} />
+            <ReceiptDetailRow
+              label="Receipt ID"
+              value={receiptNumber}
+              icon={<User size={16} />}
+            />
+            <ReceiptDetailRow
+              label="Date"
+              value={formattedTime}
+              icon={<User size={16} />}
+            />
           </div>
           
           <div className="mb-4 pb-4 border-b border-gray-200">
-            <h3 className="font-medium mb-3 flex items-center">
-              <User size={16} className="mr-2 text-emerald-500" />
-              Customer Details
-            </h3>
-            <DetailRow label="Minecraft Username" value={orderData.username} />
-            <DetailRow label="Platform" value={<span className="capitalize">{orderData.platform}</span>} />
+            <ReceiptDetailRow
+              label="Customer"
+              value={username}
+              icon={<User size={16} />}
+            />
+            <ReceiptDetailRow
+              label="Platform"
+              value={platform === 'java' ? 'Java Edition' : 'Bedrock Edition'}
+              icon={<Shield size={16} />}
+            />
           </div>
           
           <div className="mb-4 pb-4 border-b border-gray-200">
-            <h3 className="font-medium mb-3 flex items-center">
-              <CreditCard size={16} className="mr-2 text-emerald-500" />
-              Purchase Details
-            </h3>
-            <DetailRow label="Item" value={`${orderData.rank} Rank`} />
-            <DetailRow label="Price" value={`$${orderData.price.toFixed(2)}`} highlighted />
+            <ReceiptDetailRow
+              label="Purchase"
+              value={`${rank} Rank`}
+              icon={<CreditCard size={16} />}
+            />
+            <ReceiptDetailRow
+              label="Amount"
+              value={`$${price.toFixed(2)}`}
+              icon={<CreditCard size={16} />}
+              isHighlighted
+            />
           </div>
           
           <div className="text-center mt-6">
@@ -220,56 +441,85 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
             </div>
             <p className="text-sm text-gray-600 mt-2">Thank you for your purchase!</p>
             <p className="text-xs text-gray-500 mt-1">Login to the server to claim your rank</p>
-            
-            <div className="mt-5 border border-gray-200 rounded-lg p-3 bg-gray-50 no-print">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Connect to our server</h4>
-              <div className="flex items-center justify-center gap-2 font-mono text-xs text-center text-gray-700">
-                <span className="py-1 px-2 bg-gray-100 rounded">champamc.store</span>
-                <button 
-                  onClick={copyServerInfo} 
-                  className="p-1 text-gray-500 hover:text-emerald-600 transition-colors"
-                  aria-label="Copy server address"
-                  title="Copy server address"
-                >
-                  <Copy size={14} />
-                </button>
-                <a 
-                  href="https://champamc.store" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="p-1 text-gray-500 hover:text-emerald-600 transition-colors"
-                  aria-label="Open website"
-                  title="Open website"
-                >
-                  <ExternalLink size={14} />
-                </a>
-              </div>
-              {copySuccess && (
-                <div className="text-xs text-emerald-600 mt-1 text-center">
-                  Copied to clipboard!
-                </div>
-              )}
-            </div>
           </div>
+          
+          {/* Payment Proof Section - Only shown if available */}
+          {payment_proof && paymentProofUrl && (
+            <div className="mt-6 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium text-gray-700">Payment Proof</h4>
+                <button 
+                  onClick={openImageViewer}
+                  className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                >
+                  <Eye size={14} />
+                  View
+                </button>
+              </div>
+              <div 
+                className="bg-gray-50 rounded-lg p-1 cursor-pointer overflow-hidden"
+                onClick={openImageViewer}
+              >
+                <img 
+                  src={paymentProofUrl} 
+                  alt="Payment Proof" 
+                  className="w-full h-auto object-contain max-h-[150px] rounded"
+                  loading="lazy"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).onerror = null;
+                    (e.target as HTMLImageElement).src = 'https://i.imgur.com/JzDJS2A.png'; // Placeholder for failed image
+                  }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
         <div className="flex gap-3 mt-4">
-          <button
-            onClick={handlePrintReceipt}
-            className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg py-2 px-4 transition duration-300 flex items-center justify-center gap-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+          <Button
+            onClick={handlePrint}
+            disabled={isPrinting}
+            className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white"
+            variant="default"
           >
-            <Download size={16} />
-            Save Receipt
-          </button>
-          <button
+            <Printer size={16} className="mr-2" />
+            {isPrinting ? 'Printing...' : 'Print Receipt'}
+          </Button>
+          <Button
             onClick={onClose}
-            className="flex-1 bg-gray-600 hover:bg-gray-700 text-white rounded-lg py-2 px-4 transition duration-300 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+            className="flex-1"
+            variant="outline"
           >
             Close
-          </button>
+          </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+
+      {/* Full Screen Image Viewer */}
+      {isImageViewerOpen && paymentProofUrl && (
+        <div 
+          className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4"
+          onClick={() => setIsImageViewerOpen(false)}
+        >
+          <button 
+            onClick={() => setIsImageViewerOpen(false)}
+            className="absolute top-4 right-4 bg-gray-800/70 hover:bg-gray-700 p-2 rounded-full text-white"
+            aria-label="Close preview"
+          >
+            <X size={20} />
+          </button>
+          <img 
+            src={paymentProofUrl} 
+            alt="Payment Proof" 
+            className="max-w-full max-h-[90vh] object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).onerror = null;
+              (e.target as HTMLImageElement).src = 'https://i.imgur.com/JzDJS2A.png'; // Placeholder for failed image
+            }}
+          />
+        </div>
+      )}
+    </Dialog>
   );
 } 

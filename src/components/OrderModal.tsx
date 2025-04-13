@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { X, Upload, Info, CreditCard, User, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
@@ -67,6 +67,53 @@ const RATE_LIMIT_DURATION = 60 * 1000; // 1 minute
 const MAX_ATTEMPTS = 3;
 const rateLimitStore = new Map<string, { attempts: number; timestamp: number }>();
 
+// Memoized platform button component
+const PlatformButton = memo(({ 
+  label, 
+  isSelected, 
+  onClick 
+}: { 
+  label: 'java' | 'bedrock'; 
+  isSelected: boolean; 
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex-1 py-2 px-3 sm:px-4 rounded-lg border transition-colors text-sm sm:text-base ${
+      isSelected
+        ? 'bg-emerald-500 text-white border-emerald-600'
+        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
+    }`}
+  >
+    {label.charAt(0).toUpperCase() + label.slice(1)}
+  </button>
+));
+
+// Memoized rank button component
+const RankButton = memo(({ 
+  rank, 
+  isSelected, 
+  onClick 
+}: { 
+  rank: RankOption; 
+  isSelected: boolean; 
+  onClick: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`py-2 sm:py-3 px-2 sm:px-3 rounded-lg border transition-all transform hover:scale-[1.02] text-sm ${
+      isSelected
+        ? `bg-gradient-to-r ${rank.color} text-white border-transparent`
+        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
+    }`}
+  >
+    <div className="font-medium truncate">{rank.name}</div>
+    <div className="text-xs sm:text-sm">${rank.price}</div>
+  </button>
+));
+
 export function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const [username, setUsername] = useState('');
   const [platform, setPlatform] = useState<'java' | 'bedrock'>('java');
@@ -79,6 +126,14 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
   // If order complete and receipt is showing, hide the order form
   const showOrderForm = isOpen && !(orderComplete && showReceipt);
+
+  // Memoize the selected rank option to avoid re-calculations
+  const selectedRankOption = useMemo(() => 
+    RANKS.find(rank => rank.name === selectedRank), 
+    [selectedRank]
+  );
+  
+  const selectedRankPrice = selectedRankOption?.price || 0;
 
   // Reset states when modal is closed
   useEffect(() => {
@@ -95,7 +150,7 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
   }, [isOpen]);
 
   // Check rate limit
-  const checkRateLimit = (identifier: string): boolean => {
+  const checkRateLimit = useCallback((identifier: string): boolean => {
     const now = Date.now();
     const userRateLimit = rateLimitStore.get(identifier);
 
@@ -115,13 +170,13 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
     userRateLimit.attempts += 1;
     return true;
-  };
+  }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setPaymentProof(e.target.files[0]);
     }
-  };
+  }, []);
 
   const sendToDiscord = async (orderData: any, paymentProofUrl: string) => {
     try {
@@ -363,6 +418,7 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
       // Prepare receipt data
       const orderCompleteData = {
         ...orderData,
+        payment_proof: publicUrl,  // Add the payment proof URL to receipt data
         orderId: orderResponse && orderResponse[0] ? orderResponse[0].id : undefined
       };
       
@@ -388,15 +444,12 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
     }
   };
 
-  const handleReceiptClose = () => {
+  const handleReceiptClose = useCallback(() => {
     setShowReceipt(false);
     setReceiptData(null);
     setOrderComplete(false);
     onClose();
-  };
-
-  const selectedRankOption = RANKS.find(rank => rank.name === selectedRank);
-  const selectedRankPrice = selectedRankOption?.price || 0;
+  }, [onClose]);
 
   return (
     <>
@@ -459,28 +512,16 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
                   Platform
                 </label>
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setPlatform('java')}
-                    className={`flex-1 py-2 px-3 sm:px-4 rounded-lg border transition-colors text-sm sm:text-base ${
-                      platform === 'java'
-                        ? 'bg-emerald-500 text-white border-emerald-600'
-                        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
-                    }`}
-                  >
-                    Java
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPlatform('bedrock')}
-                    className={`flex-1 py-2 px-3 sm:px-4 rounded-lg border transition-colors text-sm sm:text-base ${
-                      platform === 'bedrock'
-                        ? 'bg-emerald-500 text-white border-emerald-600'
-                        : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
-                    }`}
-                  >
-                    Bedrock
-                  </button>
+                  <PlatformButton 
+                    label="java" 
+                    isSelected={platform === 'java'} 
+                    onClick={() => setPlatform('java')} 
+                  />
+                  <PlatformButton 
+                    label="bedrock" 
+                    isSelected={platform === 'bedrock'} 
+                    onClick={() => setPlatform('bedrock')} 
+                  />
                 </div>
               </div>
 
@@ -490,19 +531,12 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                   {RANKS.map((rank) => (
-                    <button
+                    <RankButton
                       key={rank.name}
-                      type="button"
+                      rank={rank}
+                      isSelected={selectedRank === rank.name}
                       onClick={() => setSelectedRank(rank.name)}
-                      className={`py-2 sm:py-3 px-2 sm:px-3 rounded-lg border transition-all transform hover:scale-[1.02] text-sm ${
-                        selectedRank === rank.name
-                          ? `bg-gradient-to-r ${rank.color} text-white border-transparent`
-                          : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
-                      }`}
-                    >
-                      <div className="font-medium truncate">{rank.name}</div>
-                      <div className="text-xs sm:text-sm">${rank.price}</div>
-                    </button>
+                    />
                   ))}
                 </div>
               </div>
