@@ -196,12 +196,11 @@ export function OrderModal({ isOpen, onClose }: OrderModalProps) {
       // Sanitize the entire webhook content
       const sanitizedContent = sanitizeDiscordContent(webhookContent);
       
-      // Instead of directly calling Discord, use our secure server endpoint
-      const response = await fetch('/api/notifications/discord', {
+      // Use the direct Netlify Function URL path
+      const response = await fetch('/.netlify/functions/discord-webhook', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Add CSRF token if you have one implemented
         },
         body: JSON.stringify({
           type: 'new_order',
