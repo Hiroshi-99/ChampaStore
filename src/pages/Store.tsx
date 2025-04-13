@@ -1,7 +1,9 @@
-import React, { useState, memo } from 'react';
+import React, { useState, memo, lazy, Suspense } from 'react';
 import { ShoppingCart, Check, Server } from 'lucide-react';
-import { OrderModal } from '../components/OrderModal';
-import { ServerStatusModal } from '../components/ServerStatusModal';
+
+// Lazy load modals for better initial load performance
+const OrderModal = lazy(() => import('../components/OrderModal').then(module => ({ default: module.OrderModal })));
+const ServerStatusModal = lazy(() => import('../components/ServerStatusModal').then(module => ({ default: module.ServerStatusModal })));
 
 // Memoized feature item component for better performance
 const FeatureItem = memo(({ icon: Icon, title, description }: { icon: React.ElementType, title: string, description: string }) => (
@@ -11,6 +13,80 @@ const FeatureItem = memo(({ icon: Icon, title, description }: { icon: React.Elem
       <h4 className="text-white font-semibold text-sm sm:text-base">{title}</h4>
       <p className="text-gray-400 text-xs sm:text-sm">{description}</p>
     </div>
+  </div>
+));
+
+// Extract card components to minimize re-renders
+const PremiumFeaturesCard = memo(({ features, onOpenOrderModal }: { 
+  features: Array<{ icon: React.ElementType, title: string, description: string }>,
+  onOpenOrderModal: () => void
+}) => (
+  <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 shadow-lg sm:shadow-xl border border-gray-700">
+    <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Premium Features</h3>
+    <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
+      {features.map((item, index) => (
+        <FeatureItem 
+          key={index}
+          icon={item.icon}
+          title={item.title}
+          description={item.description}
+        />
+      ))}
+    </div>
+    
+    <button 
+      onClick={onOpenOrderModal}
+      className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-2.5 sm:py-3 px-4 sm:px-6 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.02] text-sm sm:text-base font-medium"
+    >
+      <ShoppingCart size={16} className="sm:hidden" />
+      <ShoppingCart size={18} className="hidden sm:block" />
+      Purchase Rank
+    </button>
+  </div>
+));
+
+const MinecraftAccountCard = memo(() => (
+  <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 shadow-lg sm:shadow-xl border border-gray-700">
+    <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Minecraft Accounts</h3>
+    <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
+      <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+        <Check className="text-emerald-400 flex-shrink-0" size={18} />
+        <div>
+          <h4 className="text-white font-semibold text-sm sm:text-base">Full Access Account</h4>
+          <p className="text-gray-400 text-xs sm:text-sm">Original Minecraft account with full access</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+        <Check className="text-emerald-400 flex-shrink-0" size={18} />
+        <div>
+          <h4 className="text-white font-semibold text-sm sm:text-base">Email Access</h4>
+          <p className="text-gray-400 text-xs sm:text-sm">Complete email access included</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+        <Check className="text-emerald-400 flex-shrink-0" size={18} />
+        <div>
+          <h4 className="text-white font-semibold text-sm sm:text-base">Instant Delivery</h4>
+          <p className="text-gray-400 text-xs sm:text-sm">Get your account details instantly after purchase</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
+        <Check className="text-emerald-400 flex-shrink-0" size={18} />
+        <div>
+          <h4 className="text-white font-semibold text-sm sm:text-base">24/7 Support</h4>
+          <p className="text-gray-400 text-xs sm:text-sm">Full support for any issues or questions</p>
+        </div>
+      </div>
+    </div>
+    
+    <button 
+      onClick={() => window.open('https://cipher88.store', '_blank')}
+      className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg py-2.5 sm:py-3 px-4 sm:px-6 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.02] text-sm sm:text-base font-medium"
+    >
+      <ShoppingCart size={16} className="sm:hidden" />
+      <ShoppingCart size={18} className="hidden sm:block" />
+      Buy Account
+    </button>
   </div>
 ));
 
@@ -28,13 +104,14 @@ const Store: React.FC = () => {
 
   return (
     <div className="min-h-screen relative">
-      {/* Background Video */}
+      {/* Background Video - with preload="metadata" for better initial load */}
       <div className="absolute inset-0 z-0 overflow-hidden">
         <video
           autoPlay
           loop
           muted
           playsInline
+          preload="metadata"
           className="absolute w-full h-full object-cover"
           style={{
             filter: 'brightness(0.4)'
@@ -57,6 +134,10 @@ const Store: React.FC = () => {
               src="https://i.imgur.com/ArKEQz1.png" 
               alt="Champa Logo" 
               className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-emerald-500"
+              width={40}
+              height={40}
+              loading="eager"
+              fetchPriority="high"
             />
             <h1 className="text-white text-xl sm:text-2xl font-bold tracking-wider">CHAMPA STORE</h1>
           </div>
@@ -89,6 +170,9 @@ const Store: React.FC = () => {
                 alt="Champa Banner"
                 className="w-full h-full object-cover"
                 loading="eager"
+                fetchPriority="high"
+                width={1200}
+                height={400}
               />
             </div>
           </div>
@@ -104,73 +188,14 @@ const Store: React.FC = () => {
             
             {/* Features Grid */}
             <div className="grid md:grid-cols-2 gap-6 max-w-6xl mx-auto">
-              {/* Premium Features Card */}
-              <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 shadow-lg sm:shadow-xl border border-gray-700">
-                <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Premium Features</h3>
-                <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
-                  {featureItems.map((item, index) => (
-                    <FeatureItem 
-                      key={index}
-                      icon={item.icon}
-                      title={item.title}
-                      description={item.description}
-                    />
-                  ))}
-                </div>
-                
-                <button 
-                  onClick={() => setIsOrderModalOpen(true)}
-                  className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-2.5 sm:py-3 px-4 sm:px-6 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.02] text-sm sm:text-base font-medium"
-                >
-                  <ShoppingCart size={16} className="sm:hidden" />
-                  <ShoppingCart size={18} className="hidden sm:block" />
-                  Purchase Rank
-                </button>
-              </div>
+              {/* Premium Features Card - Using memoized component */}
+              <PremiumFeaturesCard 
+                features={featureItems} 
+                onOpenOrderModal={() => setIsOrderModalOpen(true)} 
+              />
 
-              {/* Minecraft Account Card */}
-              <div className="bg-gray-800/80 backdrop-blur-sm rounded-xl sm:rounded-2xl p-4 sm:p-6 md:p-8 shadow-lg sm:shadow-xl border border-gray-700">
-                <h3 className="text-xl sm:text-2xl font-bold text-white mb-4 sm:mb-6">Minecraft Accounts</h3>
-                <div className="space-y-3 sm:space-y-4 mb-6 sm:mb-8">
-                  <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
-                    <Check className="text-emerald-400 flex-shrink-0" size={18} />
-                    <div>
-                      <h4 className="text-white font-semibold text-sm sm:text-base">Full Access Account</h4>
-                      <p className="text-gray-400 text-xs sm:text-sm">Original Minecraft account with full access</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
-                    <Check className="text-emerald-400 flex-shrink-0" size={18} />
-                    <div>
-                      <h4 className="text-white font-semibold text-sm sm:text-base">Email Access</h4>
-                      <p className="text-gray-400 text-xs sm:text-sm">Complete email access included</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
-                    <Check className="text-emerald-400 flex-shrink-0" size={18} />
-                    <div>
-                      <h4 className="text-white font-semibold text-sm sm:text-base">Instant Delivery</h4>
-                      <p className="text-gray-400 text-xs sm:text-sm">Get your account details instantly after purchase</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 p-2 sm:p-3 bg-gray-700/30 rounded-lg hover:bg-gray-700/50 transition-colors">
-                    <Check className="text-emerald-400 flex-shrink-0" size={18} />
-                    <div>
-                      <h4 className="text-white font-semibold text-sm sm:text-base">24/7 Support</h4>
-                      <p className="text-gray-400 text-xs sm:text-sm">Full support for any issues or questions</p>
-                    </div>
-                  </div>
-                </div>
-                
-                <button 
-                  onClick={() => window.open('https://cipher88.store', '_blank')}
-                  className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-lg py-2.5 sm:py-3 px-4 sm:px-6 flex items-center justify-center gap-2 transition duration-300 transform hover:scale-[1.02] text-sm sm:text-base font-medium"
-                >
-                  <ShoppingCart size={16} className="sm:hidden" />
-                  <ShoppingCart size={18} className="hidden sm:block" />
-                  Buy Account
-                </button>
-              </div>
+              {/* Minecraft Account Card - Using memoized component */}
+              <MinecraftAccountCard />
             </div>
           </div>
         </main>
@@ -190,15 +215,22 @@ const Store: React.FC = () => {
         </footer>
       </div>
       
-      <OrderModal
-        isOpen={isOrderModalOpen}
-        onClose={() => setIsOrderModalOpen(false)}
-      />
+      {/* Lazy loaded modals */}
+      <Suspense fallback={null}>
+        {isOrderModalOpen && (
+          <OrderModal
+            isOpen={isOrderModalOpen}
+            onClose={() => setIsOrderModalOpen(false)}
+          />
+        )}
 
-      <ServerStatusModal
-        isOpen={isServerStatusModalOpen}
-        onClose={() => setIsServerStatusModalOpen(false)}
-      />
+        {isServerStatusModalOpen && (
+          <ServerStatusModal
+            isOpen={isServerStatusModalOpen}
+            onClose={() => setIsServerStatusModalOpen(false)}
+          />
+        )}
+      </Suspense>
     </div>
   );
 };
