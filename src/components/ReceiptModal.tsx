@@ -132,7 +132,7 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
             <p className="text-sm text-gray-600 mt-2">Thank you for your purchase!</p>
             <p className="text-xs text-gray-500 mt-1">Login to the server to claim your rank</p>
             <div className="mt-4 font-mono text-xs text-center text-gray-500">
-              <p>server.champastore.com</p>
+              <p>champa.lol</p>
             </div>
           </div>
         </div>

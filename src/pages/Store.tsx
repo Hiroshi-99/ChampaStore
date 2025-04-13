@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
-import { ShoppingCart, Check, ChevronLeft, ChevronRight, Server } from 'lucide-react';
+import React, { useState, memo } from 'react';
+import { ShoppingCart, Check, Server } from 'lucide-react';
 import { OrderModal } from '../components/OrderModal';
 import { ServerStatusModal } from '../components/ServerStatusModal';
 
@@ -17,95 +17,6 @@ const FeatureItem = memo(({ icon: Icon, title, description }: { icon: React.Elem
 const Store: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState<boolean>(false);
   const [isServerStatusModalOpen, setIsServerStatusModalOpen] = useState<boolean>(false);
-  const [currentSlide, setCurrentSlide] = useState<number>(0);
-  const [isPaused, setIsPaused] = useState<boolean>(false);
-  const touchStartX = useRef<number>(0);
-  const touchEndX = useRef<number>(0);
-  const sliderRef = useRef<HTMLDivElement>(null);
-
-  const bannerImages = [
-    "https://i.imgur.com/8WJ8noJ.jpeg",
-    "https://i.imgur.com/dIODmz4.jpeg",
-    "https://i.imgur.com/OQJmGoB.jpeg"
-  ];
-
-  // Add animation styles to document head
-  useEffect(() => {
-    const styleEl = document.createElement('style');
-    styleEl.textContent = `
-      @keyframes progress-animation {
-        0% { width: 0; }
-        100% { width: 100%; }
-      }
-    `;
-    document.head.appendChild(styleEl);
-    
-    return () => {
-      document.head.removeChild(styleEl);
-    };
-  }, []);
-
-  const nextSlide = useCallback(() => {
-    setCurrentSlide((prev: number) => (prev + 1) % bannerImages.length);
-  }, [bannerImages.length]);
-
-  const prevSlide = useCallback(() => {
-    setCurrentSlide((prev: number) => (prev - 1 + bannerImages.length) % bannerImages.length);
-  }, [bannerImages.length]);
-
-  const goToSlide = useCallback((index: number) => {
-    setCurrentSlide(index);
-  }, []);
-
-  // Handle keyboard navigation
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'ArrowLeft') {
-      prevSlide();
-    } else if (e.key === 'ArrowRight') {
-      nextSlide();
-    }
-  }, [nextSlide, prevSlide]);
-
-  // Handle touch events
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchEnd = () => {
-    const touchDiff = touchStartX.current - touchEndX.current;
-    
-    // Only register as swipe if moved more than 50px
-    if (Math.abs(touchDiff) > 50) {
-      if (touchDiff > 0) {
-        nextSlide(); // Swipe left
-      } else {
-        prevSlide(); // Swipe right
-      }
-    }
-  };
-
-  useEffect(() => {
-    // Auto-advance slides when not paused
-    if (!isPaused) {
-      const timer = setInterval(() => {
-        nextSlide();
-      }, 5000); // Change slide every 5 seconds
-
-      return () => clearInterval(timer);
-    }
-  }, [isPaused, nextSlide]);
-
-  // Add and remove event listeners for keyboard navigation
-  useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [handleKeyDown]);
 
   // Feature items data
   const featureItems = [
@@ -169,108 +80,16 @@ const Store: React.FC = () => {
           </button>
         </header>
 
-        {/* Banner */}
+        {/* Static Banner */}
         <div className="mx-auto w-full max-w-6xl px-3 sm:px-4 mt-3 sm:mt-4 mb-4 sm:mb-8">
-          <div 
-            className="relative w-full overflow-hidden rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl"
-            onMouseEnter={() => setIsPaused(true)}
-            onMouseLeave={() => setIsPaused(false)}
-            ref={sliderRef}
-          >
-            {/* Banner Images */}
-            <div 
-              className="relative w-full h-[200px] sm:h-[300px] md:h-[400px] transition-all duration-500 ease-out"
-              style={{ transform: `translateX(-${currentSlide * 100}%)` }}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              role="region"
-              aria-label="Banner slideshow"
-              tabIndex={0}
-            >
-              <div className="absolute inset-0 flex">
-                {bannerImages.map((image, index) => (
-                  <div
-                    key={index}
-                    className="relative w-full h-full flex-shrink-0"
-                    style={{ left: `${index * 100}%` }}
-                    aria-hidden={currentSlide !== index}
-                  >
-                    <img 
-                      src={image}
-                      alt={`Banner ${index + 1}`}
-                      className="w-full h-full object-cover"
-                      loading={index === 0 ? "eager" : "lazy"} // Optimization: lazy load non-initial images
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-r from-black/50 to-transparent"></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Progress bar */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-white/20">
-              <div 
-                className="h-full bg-emerald-500 transition-all duration-300"
-                style={{ 
-                  width: isPaused ? '0%' : '100%',
-                  animation: isPaused ? 'none' : 'progress-animation 5s linear infinite',
-                }}
+          <div className="relative w-full overflow-hidden rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl">
+            <div className="w-full h-[200px] sm:h-[300px] md:h-[400px]">
+              <img 
+                src="https://cdn.discordapp.com/attachments/1330444349179433083/1330444748661456897/1228-ezgif.com-video-to-gif-converter.gif?ex=67fcbeba&is=67fb6d3a&hm=5e6a8c5ce9ceeb8e6b9677343015ea1d60ceba262203540de2277aeaf97863e9&"
+                alt="Champa Banner"
+                className="w-full h-full object-cover"
+                loading="eager"
               />
-            </div>
-
-            {/* Navigation Buttons */}
-            <button 
-              onClick={prevSlide}
-              className="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 sm:p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              aria-label="Previous slide"
-            >
-              <ChevronLeft size={20} className="sm:hidden" />
-              <ChevronLeft size={24} className="hidden sm:block" />
-            </button>
-            <button 
-              onClick={nextSlide}
-              className="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-1 sm:p-2 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              aria-label="Next slide"
-            >
-              <ChevronRight size={20} className="sm:hidden" />
-              <ChevronRight size={24} className="hidden sm:block" />
-            </button>
-
-            {/* Slide Indicators */}
-            <div className="absolute bottom-2 sm:bottom-4 left-1/2 -translate-x-1/2 flex gap-1 sm:gap-2">
-              {bannerImages.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => goToSlide(index)}
-                  className={`w-1.5 sm:w-2 h-1.5 sm:h-2 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500 ${
-                    currentSlide === index 
-                      ? 'bg-white sm:w-4 w-3' 
-                      : 'bg-white/50 hover:bg-white/75'
-                  }`}
-                  aria-label={`Go to slide ${index + 1}`}
-                  aria-current={currentSlide === index ? 'true' : 'false'}
-                />
-              ))}
-            </div>
-
-            {/* Banner Content */}
-            <div className="absolute inset-0 z-20 flex flex-col justify-center p-4 sm:p-8 md:p-16">
-              <h2 className="text-3xl sm:text-4xl md:text-6xl font-bold text-white drop-shadow-lg mb-2 sm:mb-4">
-                Champa <span className="text-emerald-400">Ranks</span>
-              </h2>
-              <p className="text-white/90 text-sm sm:text-lg md:text-xl max-w-md">
-                Enhance your gameplay experience with our premium ranks
-              </p>
-              
-              {/* Mobile CTA */}
-              <button
-                onClick={() => setIsServerStatusModalOpen(true)}
-                className="sm:hidden mt-4 inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg transition-colors self-start"
-              >
-                <Server size={16} />
-                Join Now
-              </button>
             </div>
           </div>
         </div>
