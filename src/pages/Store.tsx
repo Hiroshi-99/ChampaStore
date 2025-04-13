@@ -2,8 +2,8 @@ import React, { useState, memo, lazy, Suspense } from 'react';
 import { ShoppingCart, Check, Server } from 'lucide-react';
 
 // Lazy load modals for better initial load performance
-const OrderModal = lazy(() => import('../components/OrderModal').then(module => ({ default: module.OrderModal })));
-const ServerStatusModal = lazy(() => import('../components/ServerStatusModal').then(module => ({ default: module.ServerStatusModal })));
+const OrderModal = lazy(() => import('../components/OrderModal'));
+const ServerStatusModal = lazy(() => import('../components/ServerStatusModal'));
 
 // Memoized feature item component for better performance
 const FeatureItem = memo(({ icon: Icon, title, description }: { icon: React.ElementType, title: string, description: string }) => (

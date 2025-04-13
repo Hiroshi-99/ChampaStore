@@ -23,7 +23,7 @@ interface ServerStatus {
   lastUpdated: string;
 }
 
-export const ServerStatusModal: React.FC<ServerStatusModalProps> = ({ isOpen, onClose }) => {
+export default function ServerStatusModal({ isOpen, onClose }: ServerStatusModalProps) {
   const [serverType, setServerType] = useState<ServerType>('java');
   const [serverData, setServerData] = useState<ServerStatus>({
     online: false,
@@ -381,4 +381,4 @@ export const ServerStatusModal: React.FC<ServerStatusModalProps> = ({ isOpen, on
       </div>
     </div>
   );
-}; 
+} 

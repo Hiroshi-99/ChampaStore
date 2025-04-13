@@ -114,7 +114,7 @@ const RankButton = memo(({
   </button>
 ));
 
-export function OrderModal({ isOpen, onClose }: OrderModalProps) {
+export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const [username, setUsername] = useState('');
   const [platform, setPlatform] = useState<'java' | 'bedrock'>('java');
   const [selectedRank, setSelectedRank] = useState<string>('VIP');
