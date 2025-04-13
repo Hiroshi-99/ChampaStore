@@ -125,7 +125,7 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
 
   // Copy server information to clipboard
   const copyServerInfo = useCallback(() => {
-    navigator.clipboard.writeText('champa.lol').then(() => {
+    navigator.clipboard.writeText('champamc.store').then(() => {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 2000);
     });
@@ -224,7 +224,7 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
             <div className="mt-5 border border-gray-200 rounded-lg p-3 bg-gray-50 no-print">
               <h4 className="text-sm font-medium text-gray-700 mb-2">Connect to our server</h4>
               <div className="flex items-center justify-center gap-2 font-mono text-xs text-center text-gray-700">
-                <span className="py-1 px-2 bg-gray-100 rounded">champa.lol</span>
+                <span className="py-1 px-2 bg-gray-100 rounded">champamc.store</span>
                 <button 
                   onClick={copyServerInfo} 
                   className="p-1 text-gray-500 hover:text-emerald-600 transition-colors"
