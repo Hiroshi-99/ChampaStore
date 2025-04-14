@@ -6,17 +6,26 @@ import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { Button } from "../ui/button";
 import { sanitizeInput } from '../utils/sanitize';
+import { formatDate } from '../utils/date-helpers';
 
 // Lazy loaded image viewer component to reduce initial bundle size
 const ImageViewer = lazy(() => import('./ImageViewer'));
 
 // Fallback image viewer in case the main component fails to load
 const FallbackImageViewer = ({ onClose, imageUrl }: { onClose: () => void; imageUrl: string }) => (
-  <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 animate-fadeIn">
-    <button onClick={onClose} className="absolute right-4 top-4 bg-gray-800/70 p-2 rounded-full text-white">
+  <div className="fixed inset-0 bg-black/90 z-[999] flex items-center justify-center p-4 animate-fadeIn">
+    <button onClick={onClose} className="absolute right-4 top-4 bg-gray-800/70 p-2 rounded-full text-white hover:bg-gray-700 transition-colors">
       <X size={20} />
     </button>
-    <img src={imageUrl} alt="Preview" className="max-w-full max-h-[90vh] object-contain" />
+    <img 
+      src={imageUrl} 
+      alt="Preview" 
+      className="max-w-full max-h-[90vh] object-contain rounded"
+      onError={(e) => {
+        (e.target as HTMLImageElement).onerror = null;
+        (e.target as HTMLImageElement).src = 'https://i.imgur.com/JzDJS2A.png'; // Placeholder for failed image
+      }}
+    />
   </div>
 );
 
@@ -98,6 +107,9 @@ const PaymentProofPreview = memo(({
       console.error("Failed to load image:", imageUrl);
     };
     
+    // Set crossOrigin to prevent CORS issues
+    img.crossOrigin = "anonymous";
+    
     // Start loading
     img.src = imageUrl;
     
@@ -157,7 +169,7 @@ const PaymentProofPreview = memo(({
 });
 
 // Optimized Receipt Modal component with enhanced configurability
-export function ReceiptModal({ 
+export const ReceiptModal = memo(function ReceiptModal({ 
   isOpen, 
   onClose, 
   orderData,
@@ -249,20 +261,17 @@ export function ReceiptModal({
           return ''; // Return empty string to prevent loading malicious URLs
         }
         
-        // Use image proxy if available, otherwise direct URL
-        const imageProxyUrl = '/.netlify/functions/image-proxy';
-        return imageProxyUrl ? `${imageProxyUrl}?url=${encodeURIComponent(payment_proof)}` : payment_proof;
+        // Return the URL directly instead of using a proxy
+        // This avoids CORS issues in most cases
+        return payment_proof;
       }
       
       // Otherwise, construct the URL using the Supabase pattern with URL encoding
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ymzksxrmsocggozepqsu.supabase.co';
       const encodedPath = encodeURIComponent(payment_proof);
       
-      // Use the configured proxy
-      const imageProxyUrl = '/.netlify/functions/image-proxy';
-      return imageProxyUrl ? 
-        `${imageProxyUrl}?url=${encodeURIComponent(`${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`)}` :
-        `${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`;
+      // Return the direct Supabase URL
+      return `${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`;
     } catch (error) {
       console.error('Error constructing payment proof URL:', error);
       return ''; // Return empty string to prevent loading invalid URLs
@@ -521,16 +530,31 @@ export function ReceiptModal({
           {printEnabled && (
             <Button 
               variant="outline" 
-              className="mt-4 w-full flex items-center justify-center gap-2 text-white bg-zinc-800 hover:bg-zinc-700 border-none"
-              onClick={() => handlePrint()}
+              className="flex-1 flex items-center justify-center gap-2 text-white bg-zinc-800 hover:bg-zinc-700 border-gray-700 hover:border-gray-600 transition-colors"
+              onClick={() => {
+                setIsPrinting(true);
+                handlePrint();
+                // Reset printing state after a delay to handle any UI effects
+                setTimeout(() => setIsPrinting(false), 2000);
+              }}
+              disabled={isPrinting}
             >
-              <Printer size={16} />
-              Print Receipt
+              {isPrinting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                  Printing...
+                </>
+              ) : (
+                <>
+                  <Printer size={16} />
+                  Print Receipt
+                </>
+              )}
             </Button>
           )}
           <Button
             onClick={onClose}
-            className={`flex-1 ${theme.animations ? 'active:scale-95 transform transition-all duration-200' : ''} hover:bg-gray-700/30`}
+            className="flex-1 bg-gray-700 hover:bg-gray-600 text-white border-gray-600"
             variant="outline"
           >
             Close
@@ -540,23 +564,23 @@ export function ReceiptModal({
         {/* Full Screen Image Viewer - Lazy loaded with enhanced configuration */}
         {isImageViewerOpen && paymentProofUrl && (
           <Suspense fallback={
-            <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center">
-              <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-            </div>
+            <FallbackImageViewer onClose={toggleImageViewer} imageUrl={paymentProofUrl} />
           }>
-            <ImageViewer 
-              imageUrl={paymentProofUrl}
-              onClose={toggleImageViewer}
-              alt={`Payment proof for ${username}'s ${rank} rank purchase`}
-              initialScale={1}
-              enableControls={true}
-              enableDownload={true}
-              enableRotate={true}
-              disableAnimation={!theme.animations}
-            />
+            <div className="fixed inset-0 z-[999] flex items-center justify-center">
+              <ImageViewer 
+                imageUrl={paymentProofUrl}
+                onClose={toggleImageViewer}
+                alt={`Payment proof for ${username}'s ${rank} rank purchase`}
+                initialScale={1}
+                enableControls={true}
+                enableDownload={true}
+                enableRotate={true}
+                disableAnimation={!theme.animations}
+              />
+            </div>
           </Suspense>
         )}
       </DialogContent>
     </Dialog>
   );
-} 
+});

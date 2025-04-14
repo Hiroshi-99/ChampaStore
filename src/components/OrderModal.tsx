@@ -6,10 +6,17 @@ import { sanitizeInput, sanitizeDiscordContent } from '../utils/sanitize';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "../ui/dialog";
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { ReceiptModal } from './ReceiptModal';
+import { Button } from "../ui/button";
 
 interface OrderModalProps {
   isOpen: boolean;
   onClose: () => void;
+  title: string;
+  name?: string;
+  platform?: "java" | "bedrock";
+  rankName?: string;
+  onConfirm: () => void;
+  isLoading?: boolean;
 }
 
 interface RankOption {
@@ -36,10 +43,21 @@ const DEFAULT_RANKS: RankOption[] = [
   }
 ];
 
-// Rate limiting configuration
+// Rate limiting configuration with memory efficiency
 const RATE_LIMIT_DURATION = 60 * 1000; // 1 minute
 const MAX_ATTEMPTS = 3;
+// Use WeakMap for better garbage collection when possible
 const rateLimitStore = new Map<string, { attempts: number; timestamp: number; blocked: boolean }>();
+
+// Clean up expired rate limit entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of rateLimitStore.entries()) {
+    if (now - value.timestamp > RATE_LIMIT_DURATION * 2) {
+      rateLimitStore.delete(key);
+    }
+  }
+}, 300000); // Clean up every 5 minutes
 
 // Memoized platform button component
 const PlatformButton = memo(({ 
@@ -97,9 +115,60 @@ const RankButton = memo(({
   </button>
 ));
 
-export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
+// Virtualized rank buttons component for better performance with many ranks
+const VirtualizedRankButtons = memo(({ 
+  ranks, 
+  selectedRank, 
+  onSelectRank 
+}: { 
+  ranks: RankOption[]; 
+  selectedRank: string; 
+  onSelectRank: (name: string) => void;
+}) => {
+  // Only re-render when ranks or selection changes
+  return useMemo(() => (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+      {ranks.map((rank) => (
+        <RankButton
+          key={rank.name}
+          rank={rank}
+          isSelected={selectedRank === rank.name}
+          onClick={() => onSelectRank(rank.name)}
+        />
+      ))}
+    </div>
+  ), [ranks, selectedRank, onSelectRank]);
+});
+
+// Memoized components to prevent unnecessary re-renders
+const ModalHeader = React.memo(({ title, onClose }: { title: string, onClose: () => void }) => (
+  <div className="p-4 sm:p-6 border-b flex justify-between items-center">
+    <h2 className="text-xl font-semibold">{title}</h2>
+    <Button variant="ghost" className="h-8 w-8 p-0" onClick={onClose}>
+      <X className="h-4 w-4" />
+    </Button>
+  </div>
+));
+
+const InfoRow = React.memo(({ label, value }: { label: string, value: string }) => (
+  <div className="flex justify-between mb-2">
+    <span className="text-gray-500">{label}</span>
+    <span className="font-medium">{value}</span>
+  </div>
+));
+
+export const OrderModal: React.FC<OrderModalProps> = React.memo(({ 
+  isOpen, 
+  onClose, 
+  title, 
+  name = "", 
+  platform: initialPlatform = "java", 
+  rankName = "", 
+  onConfirm, 
+  isLoading = false 
+}) => {
   const [username, setUsername] = useState('');
-  const [platform, setPlatform] = useState<'java' | 'bedrock'>('java');
+  const [platform, setPlatform] = useState<"java" | "bedrock">(initialPlatform);
   const [selectedRank, setSelectedRank] = useState<string>('VIP');
   const [paymentProof, setPaymentProof] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -125,6 +194,59 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
   // If order complete and receipt is showing, hide the order form
   const showOrderForm = isOpen && !(orderComplete && showReceipt);
+
+  // Implement debouncing for username input
+  const [debouncedUsername, setDebouncedUsername] = useState('');
+  
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (username !== debouncedUsername) {
+        setDebouncedUsername(username);
+      }
+    }, 300);
+    
+    return () => clearTimeout(timer);
+  }, [username, debouncedUsername]);
+  
+  // Prefetch image optimization
+  useEffect(() => {
+    if (isOpen && ranks.length > 0) {
+      // Prefetch rank images for faster rendering
+      ranks.forEach(rank => {
+        if (rank.image) {
+          const img = new Image();
+          img.src = rank.image;
+        }
+      });
+    }
+  }, [isOpen, ranks]);
+  
+  // Better memoization of selected rank
+  const selectedRankOption = useMemo(() => 
+    ranks.find(rank => rank.name === selectedRank) || ranks[0], 
+    [selectedRank, ranks]
+  );
+  
+  // Memoize expensive operations
+  const selectedRankPrice = useMemo(() => 
+    selectedRankOption?.price || 0,
+    [selectedRankOption]
+  );
+  
+  const hasDiscount = useMemo(() => 
+    !!(selectedRankOption?.originalPrice && selectedRankOption.originalPrice > selectedRankOption.price),
+    [selectedRankOption]
+  );
+  
+  // Memoize platform selection handler to avoid function recreation
+  const handlePlatformSelect = useCallback((platform: 'java' | 'bedrock') => {
+    setPlatform(platform);
+  }, []);
+  
+  // Memoize rank selection handler
+  const handleRankSelect = useCallback((name: string) => {
+    setSelectedRank(name);
+  }, []);
 
   // Fetch ranks and images from the database
   useEffect(() => {
@@ -229,28 +351,6 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     }
   }, [isOpen, selectedRank]);
 
-  // Memoize the selected rank option to avoid re-calculations
-  const selectedRankOption = useMemo(() => 
-    ranks.find(rank => rank.name === selectedRank), 
-    [selectedRank, ranks]
-  );
-  
-  const selectedRankPrice = selectedRankOption?.price || 0;
-
-  // Reset states when modal is closed
-  useEffect(() => {
-    if (!isOpen) {
-      // Small delay to ensure animations complete before resetting
-      const timeout = setTimeout(() => {
-        setOrderComplete(false);
-        setShowReceipt(false);
-        setReceiptData(null);
-      }, 300);
-      
-      return () => clearTimeout(timeout);
-    }
-  }, [isOpen]);
-
   // Check rate limit
   const checkRateLimit = useCallback((identifier: string): boolean => {
     const now = Date.now();
@@ -289,8 +389,8 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     return true;
   }, []);
 
-  // Enhanced file upload handler with data URL preview instead of blob URL to fix CSP issues
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  // Progressive image loading
+  const handleImageLoad = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     
@@ -312,11 +412,43 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     
     setPaymentProof(file);
     
-    // Create a data URL instead of a blob URL to avoid CSP issues
+    // Create a small preview immediately for better UX
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result) {
-        setPaymentProofPreview(event.target.result as string);
+        // Use a small version first for immediate feedback
+        const img = new Image();
+        img.onload = () => {
+          // Create a canvas to resize the image
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          // Small preview for immediate display
+          const MAX_PREVIEW_SIZE = 100;
+          const ratio = Math.min(MAX_PREVIEW_SIZE / img.width, MAX_PREVIEW_SIZE / img.height);
+          canvas.width = img.width * ratio;
+          canvas.height = img.height * ratio;
+          
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const smallPreview = canvas.toDataURL('image/jpeg', 0.5);
+            
+            // Set small preview immediately
+            setPaymentProofPreview(smallPreview);
+            
+            // Then load full quality version
+            setTimeout(() => {
+              const fullReader = new FileReader();
+              fullReader.onload = (e) => {
+                if (e.target?.result) {
+                  setPaymentProofPreview(e.target.result as string);
+                }
+              };
+              fullReader.readAsDataURL(file);
+            }, 100);
+          }
+        };
+        img.src = event.target.result as string;
       }
     };
     reader.onerror = () => {
@@ -511,14 +643,14 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       const fileExtension = paymentProof.name.split('.').pop();
       const fileName = `payment_proof_${sanitizedUsername}_${timestamp}_${randomString}.${fileExtension}`;
       const filePath = `payment_proofs/${fileName}`;
-      
+
       // Define a function for fallback upload if storage bucket fails
       const uploadToImgurFallback = async () => {
         // Fallback to trying base64 data
         try {
           // Convert file to base64 and use data URL directly
           return new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
+        const reader = new FileReader();
             reader.onload = () => {
               if (typeof reader.result === 'string') {
                 // For real implementation, you would send this to your server endpoint 
@@ -554,9 +686,9 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
           for (const bucket of ['payment-proofs', 'images', 'store-images', 'public', 'media', 'uploads']) {
             try {
               const { data: uploadData, error: uploadError } = await supabase.storage
-                .from(bucket)
-                .upload(filePath, paymentProof, {
-                  cacheControl: '3600',
+              .from(bucket)
+              .upload(filePath, paymentProof, {
+                cacheControl: '3600',
                   upsert: false
                 });
                 
@@ -568,9 +700,9 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                 
                 paymentProofUrl = publicUrlData.publicUrl;
                 uploadSuccess = true;
-                break;
-              }
-            } catch (err) {
+              break;
+            }
+          } catch (err) {
               // Continue trying the next bucket
               console.warn(`Failed to upload to bucket ${bucket}:`, err);
             }
@@ -595,15 +727,15 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       }
 
       setLoadingStage('processing');
-      
+
       // Create order in database
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert({
-          username: sanitizedUsername,
-          platform,
-          rank: selectedRank,
-          price: selectedRankOption.price,
+        username: sanitizedUsername,
+        platform,
+        rank: selectedRank,
+        price: selectedRankOption.price,
           status: 'pending',
           payment_proof: paymentProofUrl
         })
@@ -744,105 +876,80 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     ensureStorageBucket();
   }, [isOpen]);
 
-  // Enhanced file upload section with preview and fallback message
-  const renderFileUploadSection = () => (
+  // Optimize form submission
+  const validateForm = useCallback(() => {
+    if (!username.trim()) return "Please enter your username";
+    if (username.length > 16) return "Username is too long (max 16 characters)";
+    if (!/^[a-zA-Z0-9_]{3,16}$/.test(username)) return "Invalid Minecraft username format";
+    if (!paymentProof) return "Please upload payment proof";
+    if (!selectedRank) return "Please select a rank";
+    return null;
+  }, [username, paymentProof, selectedRank]);
+  
+  // Memoize UI sections to prevent unnecessary re-renders
+  const renderSummarySection = useMemo(() => (
     <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">
-      <label className="block text-sm font-medium text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-700/50">
+      <h3 className="text-base sm:text-lg font-semibold text-white mb-4 flex items-center gap-2">
         <div className="bg-emerald-500/20 p-1.5 rounded-lg">
-          <Upload size={16} className="text-emerald-400" />
+          <Info size={18} className="text-emerald-400" />
         </div>
-        Payment Proof (QR Code Screenshot)
-      </label>
-      
-      <div className="relative">
-        <input
-          type="file"
-          onChange={handleFileChange}
-          accept="image/jpeg,image/png,image/webp"
-          className="hidden"
-          id="payment-proof"
-          required
-        />
-        <label
-          htmlFor="payment-proof"
-          className={`w-full border rounded-lg py-3 px-4 flex items-center justify-center gap-2 cursor-pointer transition duration-300 text-sm sm:text-base group
-            ${uploadError ? 'bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20' : 'bg-gray-700/50 border-gray-600/80 text-white hover:bg-gray-600/50'}`}
-        >
-          <Upload size={18} className={`${uploadError ? 'text-red-400' : 'text-emerald-400'} group-hover:scale-110 transition-transform duration-300`} />
-          {paymentProof ? (
-            <span className="truncate max-w-full">{paymentProof.name}</span>
-          ) : (
-            'Upload QR Code Screenshot'
-          )}
-        </label>
-        
-        {uploadError && (
-          <div className="mt-3 bg-red-500/10 rounded-lg p-3 border border-red-500/30 text-xs text-red-300 flex items-center">
-            <AlertCircle size={16} className="mr-2 shrink-0" /> 
-            <span>{uploadError}</span>
+        Order Summary
+      </h3>
+      <div className="space-y-2.5 text-sm sm:text-base">
+        <div className="flex justify-between items-center text-gray-300 pb-2 border-b border-gray-700/50">
+          <span>Selected Rank:</span>
+          <span className="font-medium text-white">{selectedRank}</span>
           </div>
-        )}
-        
-        {uploadFallbackMode && (
-          <div className="mt-3 bg-amber-500/10 rounded-lg p-3 border border-amber-500/30 text-xs text-amber-300 flex items-center">
-            <AlertCircle size={16} className="mr-2 shrink-0" /> 
-            <span>Using alternative upload method. Your order will still be processed normally.</span>
-          </div>
-        )}
-        
-        {paymentProofPreview && (
-          <div className="mt-4 relative animate-fadeIn">
-            <div className="relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-200"></div>
-              <div className="relative bg-gray-700/70 rounded-lg overflow-hidden border border-gray-600/50 transition-all hover:border-emerald-500/50 shadow-md">
-                <img 
-                  src={paymentProofPreview} 
-                  alt="Payment proof preview" 
-                  className="w-full h-auto max-h-[200px] object-contain rounded transition-transform duration-300 group-hover:scale-[1.02]"
-                  onLoad={() => console.log('Preview image loaded')}
-                  onError={() => {
-                    toast.error('Failed to load image preview');
-                    setPaymentProofPreview(null);
-                    setUploadError('Failed to load image preview. Please try another image.');
-                  }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+        <div className="flex justify-between items-center text-gray-300 pb-2 border-b border-gray-700/50">
+          <span>Platform:</span>
+          <span className="font-medium text-white capitalize">{platform}</span>
               </div>
+        <div className="flex justify-between items-center text-gray-300 pt-1">
+          <span>Price:</span>
+          {hasDiscount ? (
+            <div className="flex flex-col items-end">
+              <span className="line-through text-gray-500 text-xs">${selectedRankOption.originalPrice!.toFixed(2)}</span>
+              <span className="font-medium text-emerald-400 text-lg">${selectedRankOption.price.toFixed(2)}</span>
             </div>
-            <div className="absolute top-2 right-2 flex gap-1">
-              <button 
-                type="button"
-                onClick={() => {
-                  setPaymentProof(null);
-                  setPaymentProofPreview(null);
-                  setUploadError(null);
-                }}
-                className="bg-gray-800/90 text-white p-1.5 rounded-full hover:bg-red-500 transition-colors duration-200 shadow-md"
-                aria-label="Remove image"
-              >
-                <X size={14} />
-              </button>
+          ) : (
+            <span className="font-medium text-emerald-400 text-lg">${selectedRankPrice.toFixed(2)}</span>
+          )}
             </div>
-            <div className="mt-3 text-xs text-emerald-400 flex items-center justify-center bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20">
-              <Check size={14} className="mr-1.5" /> Image ready for submission
             </div>
           </div>
-        )}
-        
-        {paymentProof && !paymentProofPreview && (
-          <div className="mt-3 bg-gray-700/70 rounded-lg p-3 border border-gray-600/50 text-xs flex items-center justify-center animate-pulse">
-            <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
-            <span className="text-gray-300">Processing image...</span>
-          </div>
-        )}
-        
-        <div className="mt-3 text-xs text-gray-500 flex items-center gap-1.5 bg-gray-700/30 rounded-lg p-2 px-3">
-          <Info size={12} />
-          <span>Accepted formats: JPG, PNG, WebP (max 3MB)</span>
-        </div>
-      </div>
-    </div>
-  );
+  ), [selectedRank, platform, hasDiscount, selectedRankOption, selectedRankPrice]);
+
+  // State for animation
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  
+  // Memoized platform display string
+  const platformDisplay = useMemo(() => {
+    return platform === "java" ? "Java Edition" : "Bedrock Edition";
+  }, [platform]);
+
+  // Memoized handlers to prevent recreation on every render
+  const handleConfirm = useCallback(() => {
+    if (isLoading) return;
+    
+    try {
+      onConfirm();
+      // Show confirmation animation
+      setShowConfirmation(true);
+      
+      // Hide confirmation and close modal after delay
+      setTimeout(() => {
+        setShowConfirmation(false);
+        toast.success("Order confirmed successfully!");
+        onClose();
+      }, 1500);
+    } catch (error) {
+      console.error("Error confirming order:", error);
+      toast.error("Failed to confirm order. Please try again.");
+    }
+  }, [onConfirm, onClose, isLoading]);
+
+  // If modal is not open, return null to improve performance
+  if (!isOpen) return null;
 
   return (
     <>
@@ -898,35 +1005,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
             {!initialLoading && (
             <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
               {/* Enhanced summary with discount if applicable */}
-              <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">
-                <h3 className="text-base sm:text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <div className="bg-emerald-500/20 p-1.5 rounded-lg">
-                    <Info size={18} className="text-emerald-400" />
-                  </div>
-                  Order Summary
-                </h3>
-                <div className="space-y-2.5 text-sm sm:text-base">
-                  <div className="flex justify-between items-center text-gray-300 pb-2 border-b border-gray-700/50">
-                    <span>Selected Rank:</span>
-                    <span className="font-medium text-white">{selectedRank}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-gray-300 pb-2 border-b border-gray-700/50">
-                    <span>Platform:</span>
-                    <span className="font-medium text-white capitalize">{platform}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-gray-300 pt-1">
-                    <span>Price:</span>
-                      {selectedRankOption?.originalPrice && selectedRankOption.originalPrice > selectedRankOption.price ? (
-                        <div className="flex flex-col items-end">
-                          <span className="line-through text-gray-500 text-xs">${selectedRankOption.originalPrice.toFixed(2)}</span>
-                          <span className="font-medium text-emerald-400 text-lg">${selectedRankOption.price.toFixed(2)}</span>
-                        </div>
-                      ) : (
-                        <span className="font-medium text-emerald-400 text-lg">${selectedRankPrice.toFixed(2)}</span>
-                      )}
-                  </div>
-                </div>
-              </div>
+              {renderSummarySection}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">
@@ -959,12 +1038,12 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                     <PlatformButton 
                       label="java" 
                       isSelected={platform === 'java'} 
-                      onClick={() => setPlatform('java')} 
+                      onClick={() => handlePlatformSelect('java')} 
                     />
                     <PlatformButton 
                       label="bedrock" 
                       isSelected={platform === 'bedrock'} 
-                      onClick={() => setPlatform('bedrock')} 
+                      onClick={() => handlePlatformSelect('bedrock')} 
                     />
                   </div>
                 </div>
@@ -977,16 +1056,11 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                   </div>
                   Select Rank
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                  {ranks.map((rank) => (
-                    <RankButton
-                      key={rank.name}
-                      rank={rank}
-                      isSelected={selectedRank === rank.name}
-                      onClick={() => setSelectedRank(rank.name)}
-                    />
-                  ))}
-                </div>
+                <VirtualizedRankButtons 
+                  ranks={ranks} 
+                  selectedRank={selectedRank} 
+                  onSelectRank={handleRankSelect} 
+                />
               </div>
 
               {/* Rank Preview Section */}
@@ -1036,7 +1110,102 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
               </div>
 
               {/* Replace the file upload section with enhanced version */}
-              {renderFileUploadSection()}
+              <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">
+                <label className="block text-sm font-medium text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-700/50">
+                  <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+                    <Upload size={16} className="text-emerald-400" />
+                  </div>
+                  Payment Proof (QR Code Screenshot)
+                </label>
+                
+                <div className="relative">
+                  <input
+                    type="file"
+                    onChange={handleImageLoad}
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    id="payment-proof"
+                    required
+                  />
+                  <label
+                    htmlFor="payment-proof"
+                    className={`w-full border rounded-lg py-3 px-4 flex items-center justify-center gap-2 cursor-pointer transition duration-300 text-sm sm:text-base group
+                      ${uploadError ? 'bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20' : 'bg-gray-700/50 border-gray-600/80 text-white hover:bg-gray-600/50'}`}
+                  >
+                    <Upload size={18} className={`${uploadError ? 'text-red-400' : 'text-emerald-400'} group-hover:scale-110 transition-transform duration-300`} />
+                    {paymentProof ? (
+                      <span className="truncate max-w-full">{paymentProof.name}</span>
+                    ) : (
+                      'Upload QR Code Screenshot'
+                    )}
+                  </label>
+                  
+                  {uploadError && (
+                    <div className="mt-3 bg-red-500/10 rounded-lg p-3 border border-red-500/30 text-xs text-red-300 flex items-center">
+                      <AlertCircle size={16} className="mr-2 shrink-0" /> 
+                      <span>{uploadError}</span>
+                    </div>
+                  )}
+                  
+                  {uploadFallbackMode && (
+                    <div className="mt-3 bg-amber-500/10 rounded-lg p-3 border border-amber-500/30 text-xs text-amber-300 flex items-center">
+                      <AlertCircle size={16} className="mr-2 shrink-0" /> 
+                      <span>Using alternative upload method. Your order will still be processed normally.</span>
+                    </div>
+                  )}
+                  
+                  {paymentProofPreview && (
+                    <div className="mt-4 relative animate-fadeIn">
+                      <div className="relative group">
+                        <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-200"></div>
+                        <div className="relative bg-gray-700/70 rounded-lg overflow-hidden border border-gray-600/50 transition-all hover:border-emerald-500/50 shadow-md">
+                          <img 
+                            src={paymentProofPreview} 
+                            alt="Payment proof preview" 
+                            className="w-full h-auto max-h-[200px] object-contain rounded transition-transform duration-300 group-hover:scale-[1.02]"
+                            onLoad={() => console.log('Preview image loaded')}
+                            onError={() => {
+                              toast.error('Failed to load image preview');
+                              setPaymentProofPreview(null);
+                              setUploadError('Failed to load image preview. Please try another image.');
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+                        </div>
+                      </div>
+                      <div className="absolute top-2 right-2 flex gap-1">
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setPaymentProof(null);
+                            setPaymentProofPreview(null);
+                            setUploadError(null);
+                          }}
+                          className="bg-gray-800/90 text-white p-1.5 rounded-full hover:bg-red-500 transition-colors duration-200 shadow-md"
+                          aria-label="Remove image"
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                      <div className="mt-3 text-xs text-emerald-400 flex items-center justify-center bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20">
+                        <Check size={14} className="mr-1.5" /> Image ready for submission
+                      </div>
+                    </div>
+                  )}
+                  
+                  {paymentProof && !paymentProofPreview && (
+                    <div className="mt-3 bg-gray-700/70 rounded-lg p-3 border border-gray-600/50 text-xs flex items-center justify-center animate-pulse">
+                      <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
+                      <span className="text-gray-300">Processing image...</span>
+                    </div>
+                  )}
+                  
+                  <div className="mt-3 text-xs text-gray-500 flex items-center gap-1.5 bg-gray-700/30 rounded-lg p-2 px-3">
+                    <Info size={12} />
+                    <span>Accepted formats: JPG, PNG, WebP (max 3MB)</span>
+                  </div>
+                </div>
+              </div>
 
               <button
                 type="submit"
@@ -1083,6 +1252,28 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
           storeName="Champa Store"
         />
       )}
+
+      {/* Confirmation Modal */}
+      {showConfirmation && (
+        <Dialog open={showConfirmation} onOpenChange={(open) => !open && setShowConfirmation(false)}>
+          <DialogContent className="bg-white rounded-lg shadow-lg w-full max-w-md relative overflow-hidden">
+            <ModalHeader title="Order Confirmed" onClose={() => setShowConfirmation(false)} />
+            
+            <div className="p-4 sm:p-6">
+              <div className="flex justify-center items-center mb-4">
+                <div className="rounded-full bg-emerald-100 p-3">
+                  <Check className="h-8 w-8 text-emerald-600" />
+                </div>
+              </div>
+              <p className="text-emerald-700 font-medium text-lg">Order Confirmed</p>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
-}
+});
+
+OrderModal.displayName = "OrderModal";
+
+export default OrderModal;

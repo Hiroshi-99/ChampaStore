@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCw, Download } from 'lucide-react';
 
 interface ImageViewerProps {
@@ -12,7 +12,7 @@ interface ImageViewerProps {
   disableAnimation?: boolean;
 }
 
-export default memo(function ImageViewer({
+export default function ImageViewer({
   imageUrl,
   onClose,
   alt = 'Image preview',
@@ -35,22 +35,10 @@ export default memo(function ImageViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   
-  // Animation class based on config - memoized
-  const animationClass = useMemo(() => 
-    disableAnimation ? '' : 'transition-all duration-300', 
-    [disableAnimation]
-  );
-  
-  // Image style memoized to prevent recreating object on every render
-  const imageStyle = useMemo(() => ({
-    transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
-    cursor: isDragging ? 'grabbing' : (scale > 1 ? 'grab' : 'auto')
-  }), [position.x, position.y, scale, rotation, isDragging]);
-  
-  // Container style for cursor
-  const containerStyle = useMemo(() => ({
-    cursor: isDragging ? 'grabbing' : 'auto'
-  }), [isDragging]);
+  // Animation class based on config
+  const animationClass = disableAnimation 
+    ? '' 
+    : 'transition-all duration-300';
   
   // Preload image and handle loading states
   useEffect(() => {
@@ -133,12 +121,9 @@ export default memo(function ImageViewer({
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (!isDragging) return;
     
-    // Use requestAnimationFrame for smoother dragging
-    requestAnimationFrame(() => {
-      setPosition({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y
-      });
+    setPosition({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
     });
   }, [isDragging, dragStart]);
 
@@ -180,69 +165,6 @@ export default memo(function ImageViewer({
     }
   }, [onClose]);
 
-  // Memoize control buttons to prevent unnecessary re-renders
-  const controlButtons = useMemo(() => {
-    if (!enableControls) return null;
-    
-    return (
-      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-800/80 backdrop-blur-sm rounded-full px-4 py-2 flex items-center space-x-3 shadow-lg">
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            handleZoom(false);
-          }}
-          className="p-2 text-white hover:text-emerald-400 transition-colors"
-          aria-label="Zoom out"
-          disabled={scale <= 0.5}
-        >
-          <ZoomOut size={20} className={scale <= 0.5 ? "opacity-50" : ""} />
-        </button>
-        
-        <div className="text-white text-sm px-2 min-w-[50px] text-center font-medium">
-          {Math.round(scale * 100)}%
-        </div>
-        
-        <button 
-          onClick={(e) => {
-            e.stopPropagation();
-            handleZoom(true);
-          }}
-          className="p-2 text-white hover:text-emerald-400 transition-colors"
-          aria-label="Zoom in"
-          disabled={scale >= 3}
-        >
-          <ZoomIn size={20} className={scale >= 3 ? "opacity-50" : ""} />
-        </button>
-        
-        {enableRotate && (
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleRotate();
-            }}
-            className="p-2 text-white hover:text-emerald-400 transition-colors"
-            aria-label="Rotate image"
-          >
-            <RotateCw size={20} />
-          </button>
-        )}
-        
-        {enableDownload && (
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDownload();
-            }}
-            className="p-2 text-white hover:text-emerald-400 transition-colors"
-            aria-label="Download image"
-          >
-            <Download size={20} />
-          </button>
-        )}
-      </div>
-    );
-  }, [enableControls, scale, handleZoom, enableRotate, handleRotate, enableDownload, handleDownload]);
-
   return (
     <div 
       ref={containerRef}
@@ -251,7 +173,7 @@ export default memo(function ImageViewer({
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
-      style={containerStyle}
+      style={{ cursor: isDragging ? 'grabbing' : 'auto' }}
     >
       {/* Close button */}
       <button 
@@ -266,7 +188,63 @@ export default memo(function ImageViewer({
       </button>
       
       {/* Controls */}
-      {controlButtons}
+      {enableControls && (
+        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-800/80 rounded-full px-4 py-2 flex items-center space-x-3">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              handleZoom(false);
+            }}
+            className="p-2 text-white hover:text-emerald-400 transition-colors"
+            aria-label="Zoom out"
+            disabled={scale <= 0.5}
+          >
+            <ZoomOut size={20} />
+          </button>
+          
+          <div className="text-white text-sm px-2">
+            {Math.round(scale * 100)}%
+          </div>
+          
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              handleZoom(true);
+            }}
+            className="p-2 text-white hover:text-emerald-400 transition-colors"
+            aria-label="Zoom in"
+            disabled={scale >= 3}
+          >
+            <ZoomIn size={20} />
+          </button>
+          
+          {enableRotate && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRotate();
+              }}
+              className="p-2 text-white hover:text-emerald-400 transition-colors"
+              aria-label="Rotate image"
+            >
+              <RotateCw size={20} />
+            </button>
+          )}
+          
+          {enableDownload && (
+            <button 
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownload();
+              }}
+              className="p-2 text-white hover:text-emerald-400 transition-colors"
+              aria-label="Download image"
+            >
+              <Download size={20} />
+            </button>
+          )}
+        </div>
+      )}
       
       {/* Loading state */}
       {isLoading && (
@@ -296,7 +274,10 @@ export default memo(function ImageViewer({
           src={imageUrl} 
           alt={alt}
           className={`max-h-[90vh] object-contain ${animationClass}`}
-          style={imageStyle}
+          style={{ 
+            transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
+            cursor: isDragging ? 'grabbing' : (scale > 1 ? 'grab' : 'auto')
+          }}
           onMouseDown={scale > 1 ? handleMouseDown : undefined}
           onClick={(e) => e.stopPropagation()}
           draggable={false}
@@ -305,4 +286,4 @@ export default memo(function ImageViewer({
       )}
     </div>
   );
-});
+}
