@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { Button } from "../ui/button";
 import { sanitizeInput } from '../utils/sanitize';
-import { APP_CONFIG } from '../lib/config';
 
 // Lazy loaded image viewer component to reduce initial bundle size
 const ImageViewer = lazy(() => import('./ImageViewer'));
@@ -40,6 +39,10 @@ interface ReceiptModalProps {
   };
   showPaymentProof?: boolean;
   printEnabled?: boolean;
+  storeName?: string;
+  receiptBackgroundUrl?: string;
+  receiptLogoUrl?: string;
+  logoUrl?: string;
 }
 
 // Memoized receipt detail row component
@@ -160,11 +163,15 @@ export function ReceiptModal({
   orderData,
   theme = { 
     colorScheme: 'default',
-    primaryColor: APP_CONFIG.primaryColor,
-    animations: APP_CONFIG.features.enableAnimations
+    primaryColor: 'emerald',
+    animations: true
   },
-  showPaymentProof = APP_CONFIG.features.showPaymentProof,
-  printEnabled = true
+  showPaymentProof = true,
+  printEnabled = true,
+  storeName = 'Champa Store',
+  receiptBackgroundUrl = 'https://i.imgur.com/JNJ6mDD.png',
+  receiptLogoUrl,
+  logoUrl = 'https://i.imgur.com/ArKEQz1.png'
 }: ReceiptModalProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [fadeIn, setFadeIn] = useState<boolean>(false);
@@ -174,10 +181,18 @@ export function ReceiptModal({
   
   // Color scheme based on theme
   const colors = useMemo(() => {
-    const primaryColor = theme.primaryColor || APP_CONFIG.primaryColor;
+    const primaryColor = theme.primaryColor || 'emerald';
     return {
-      primary: APP_CONFIG.colors.primary,
-      headerBg: `bg-gradient-to-br ${APP_CONFIG.colors.primary.light}`,
+      primary: {
+        light: 'from-emerald-400 to-emerald-600',
+        main: 'from-emerald-500 to-emerald-600',
+        dark: 'from-emerald-600 to-emerald-700',
+        solid: 'emerald-500',
+        text: 'emerald-400',
+        border: 'emerald-500',
+        hover: 'emerald-600',
+      },
+      headerBg: `bg-gradient-to-br from-emerald-400 to-emerald-600`,
       confirmBg: `bg-${primaryColor}-100`,
       confirmText: `text-${primaryColor}-700`,
       accent: `text-${primaryColor}-500`,
@@ -234,8 +249,9 @@ export function ReceiptModal({
           return ''; // Return empty string to prevent loading malicious URLs
         }
         
-        // Use configured image proxy
-        return `${APP_CONFIG.api.imageProxyUrl}?url=${encodeURIComponent(payment_proof)}`;
+        // Use image proxy if available, otherwise direct URL
+        const imageProxyUrl = '/.netlify/functions/image-proxy';
+        return imageProxyUrl ? `${imageProxyUrl}?url=${encodeURIComponent(payment_proof)}` : payment_proof;
       }
       
       // Otherwise, construct the URL using the Supabase pattern with URL encoding
@@ -243,7 +259,10 @@ export function ReceiptModal({
       const encodedPath = encodeURIComponent(payment_proof);
       
       // Use the configured proxy
-      return `${APP_CONFIG.api.imageProxyUrl}?url=${encodeURIComponent(`${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`)}`;
+      const imageProxyUrl = '/.netlify/functions/image-proxy';
+      return imageProxyUrl ? 
+        `${imageProxyUrl}?url=${encodeURIComponent(`${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`)}` :
+        `${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`;
     } catch (error) {
       console.error('Error constructing payment proof URL:', error);
       return ''; // Return empty string to prevent loading invalid URLs
@@ -267,9 +286,9 @@ export function ReceiptModal({
     }
     
     // Delay fade-in for smoother entry 
-    const timer = setTimeout(() => setFadeIn(true), APP_CONFIG.animations.duration.fast / 10);
+    const timer = setTimeout(() => setFadeIn(true), 20); // Fast duration
     // Add completion animation after fade-in
-    const completeTimer = setTimeout(() => setAnimateComplete(true), APP_CONFIG.animations.duration.normal);
+    const completeTimer = setTimeout(() => setAnimateComplete(true), 300); // Normal duration
     
     return () => {
       clearTimeout(timer);
@@ -325,7 +344,7 @@ export function ReceiptModal({
       <DialogContent 
         className={`bg-gray-800/95 p-4 sm:p-6 md:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-700 shadow-xl transform transition-all 
           ${theme.animations 
-            ? `duration-${APP_CONFIG.animations.duration.normal} ${fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}` 
+            ? `duration-300 ${fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}` 
             : 'opacity-100'}`}
         aria-describedby="receipt-description"
       >
@@ -334,7 +353,7 @@ export function ReceiptModal({
         </DialogTitle>
         
         <p id="receipt-description" className="sr-only">
-          Your purchase receipt for {rank} rank on {APP_CONFIG.storeName}
+          Your purchase receipt for {rank} rank on {storeName}
         </p>
       
         <button
@@ -358,13 +377,13 @@ export function ReceiptModal({
         <div 
           ref={receiptRef} 
           className={`bg-white text-gray-900 rounded-xl p-6 mb-4 print:shadow-none transition-all relative overflow-hidden
-            ${theme.animations ? `duration-${APP_CONFIG.animations.duration.normal} ${animateComplete ? 'shadow-xl' : 'shadow-sm'}` : 'shadow-xl'}`}
+            ${theme.animations ? `duration-300 ${animateComplete ? 'shadow-xl' : 'shadow-sm'}` : 'shadow-xl'}`}
           aria-labelledby="receipt-title"
         >
           {/* Custom Receipt Background */}
           <div className="absolute inset-0 z-0 opacity-10">
             <img 
-              src={APP_CONFIG.receiptBackgroundUrl || "https://i.imgur.com/JNJ6mDD.png"} 
+              src={receiptBackgroundUrl || "https://i.imgur.com/JNJ6mDD.png"} 
               alt="" 
               className="w-full h-full object-cover" 
               aria-hidden="true"
@@ -382,7 +401,7 @@ export function ReceiptModal({
             <div className={`w-20 h-20 rounded-full mx-auto mb-3 shadow-lg overflow-hidden p-0.5 bg-white relative`}>
               <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 to-emerald-600 opacity-50"></div>
               <img 
-                src={APP_CONFIG.receiptLogoUrl || APP_CONFIG.logoUrl} 
+                src={receiptLogoUrl || logoUrl || "https://i.imgur.com/ArKEQz1.png"} 
                 alt="Store Logo" 
                 className="w-full h-full rounded-full border-2 border-white relative z-10"
                 width={64}
@@ -390,31 +409,31 @@ export function ReceiptModal({
                 loading="eager"
               />
             </div>
-            <h2 id="receipt-title" className={`text-2xl font-bold text-${APP_CONFIG.primaryColor}-600`}>
-              {APP_CONFIG.storeName}
+            <h2 id="receipt-title" className={`text-2xl font-bold text-${theme.primaryColor || 'emerald'}-600`}>
+              {storeName}
             </h2>
             <div className="flex items-center justify-center gap-2 mt-1">
-              <div className={`w-2 h-2 rounded-full bg-${APP_CONFIG.primaryColor}-500`}></div>
+              <div className={`w-2 h-2 rounded-full bg-${theme.primaryColor || 'emerald'}-500`}></div>
               <p className="text-sm text-gray-600 font-medium tracking-wide uppercase">Official Receipt</p>
-              <div className={`w-2 h-2 rounded-full bg-${APP_CONFIG.primaryColor}-500`}></div>
+              <div className={`w-2 h-2 rounded-full bg-${theme.primaryColor || 'emerald'}-500`}></div>
             </div>
           </div>
           
           {/* Date and Transaction Details */}
           <div className="mb-5 bg-gray-50 p-4 rounded-lg border border-gray-100">
             <div className="flex justify-between items-center mb-2">
-              <span className={`text-xs font-medium text-${APP_CONFIG.primaryColor}-600 uppercase tracking-wider`}>Date</span>
+              <span className={`text-xs font-medium text-${theme.primaryColor || 'emerald'}-600 uppercase tracking-wider`}>Date</span>
               <span className="text-sm text-gray-700">{formattedTime}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className={`text-xs font-medium text-${APP_CONFIG.primaryColor}-600 uppercase tracking-wider`}>Transaction ID</span>
+              <span className={`text-xs font-medium text-${theme.primaryColor || 'emerald'}-600 uppercase tracking-wider`}>Transaction ID</span>
               <span className="text-sm text-gray-700 font-mono">{receiptNumber}</span>
             </div>
           </div>
           
           {/* Customer Information */}
           <div className="mb-5">
-            <h3 className={`text-sm font-semibold text-${APP_CONFIG.primaryColor}-600 mb-3 pb-1 border-b border-gray-200`}>Customer Details</h3>
+            <h3 className={`text-sm font-semibold text-${theme.primaryColor || 'emerald'}-600 mb-3 pb-1 border-b border-gray-200`}>Customer Details</h3>
             <div className="flex flex-col gap-2">
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500">Username</span>
@@ -431,7 +450,7 @@ export function ReceiptModal({
           
           {/* Purchase Information */}
           <div className="mb-6">
-            <h3 className={`text-sm font-semibold text-${APP_CONFIG.primaryColor}-600 mb-3 pb-1 border-b border-gray-200`}>Purchase Summary</h3>
+            <h3 className={`text-sm font-semibold text-${theme.primaryColor || 'emerald'}-600 mb-3 pb-1 border-b border-gray-200`}>Purchase Summary</h3>
             <div className="flex flex-col gap-2">
               <div className="flex justify-between">
                 <span className="text-xs text-gray-500">Item</span>
@@ -440,14 +459,14 @@ export function ReceiptModal({
               <div className="h-px bg-gray-100 my-2"></div>
               <div className="flex justify-between">
                 <span className="text-sm font-semibold text-gray-700">Total Amount</span>
-                <span className={`text-base font-bold text-${APP_CONFIG.primaryColor}-600`}>${price.toFixed(2)}</span>
+                <span className={`text-base font-bold text-${theme.primaryColor || 'emerald'}-600`}>${price.toFixed(2)}</span>
               </div>
             </div>
           </div>
           
           {/* Payment Confirmation */}
           <div className="text-center my-6 bg-gradient-to-r from-gray-50/80 to-white/80 py-4 px-3 rounded-lg border border-gray-100">
-            <div className={`inline-flex items-center justify-center bg-${APP_CONFIG.primaryColor}-100 text-${APP_CONFIG.primaryColor}-700 py-1.5 px-4 rounded-full mb-3 shadow-sm`}>
+            <div className={`inline-flex items-center justify-center bg-${theme.primaryColor || 'emerald'}-100 text-${theme.primaryColor || 'emerald'}-700 py-1.5 px-4 rounded-full mb-3 shadow-sm`}>
               <Check size={16} className="mr-1.5" />
               <span className="text-sm font-medium">Payment Confirmed</span>
             </div>
@@ -459,10 +478,10 @@ export function ReceiptModal({
           {showPaymentProof && payment_proof && paymentProofUrl && (
             <div className="mt-6 pt-5 border-t border-gray-200">
               <div className="flex items-center justify-between mb-3">
-                <h4 className={`text-sm font-semibold text-${APP_CONFIG.primaryColor}-600`}>Payment Proof</h4>
+                <h4 className={`text-sm font-semibold text-${theme.primaryColor || 'emerald'}-600`}>Payment Proof</h4>
                 <button 
                   onClick={toggleImageViewer}
-                  className={`text-xs bg-${APP_CONFIG.primaryColor}-50 text-${APP_CONFIG.primaryColor}-600 hover:text-${APP_CONFIG.primaryColor}-700 flex items-center gap-1 py-1 px-3 rounded-full transition-colors duration-200 hover:bg-${APP_CONFIG.primaryColor}-100 focus:outline-none focus:ring-2 focus:ring-${APP_CONFIG.primaryColor}-500 focus:ring-opacity-50`}
+                  className={`text-xs bg-${theme.primaryColor || 'emerald'}-50 text-${theme.primaryColor || 'emerald'}-600 hover:text-${theme.primaryColor || 'emerald'}-700 flex items-center gap-1 py-1 px-3 rounded-full transition-colors duration-200 hover:bg-${theme.primaryColor || 'emerald'}-100 focus:outline-none focus:ring-2 focus:ring-${theme.primaryColor || 'emerald'}-500 focus:ring-opacity-50`}
                 >
                   <Eye size={14} />
                   View Full Image
@@ -493,7 +512,7 @@ export function ReceiptModal({
           <div className="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
             <p>For support, please contact us on Discord</p>
             <p className="mt-1">All purchases are final and non-refundable</p>
-            <div className={`w-8 h-1 bg-${APP_CONFIG.primaryColor}-500 mx-auto mt-3 rounded-full opacity-50`}></div>
+            <div className={`w-8 h-1 bg-${theme.primaryColor || 'emerald'}-500 mx-auto mt-3 rounded-full opacity-50`}></div>
           </div>
         </div>
 

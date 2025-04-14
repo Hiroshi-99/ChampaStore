@@ -3,7 +3,7 @@ import { X, Upload, Info, CreditCard, User, Shield, Check, AlertCircle } from 'l
 import { supabase, checkSupabaseBuckets } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { sanitizeInput, sanitizeDiscordContent } from '../utils/sanitize';
-import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "../ui/dialog";
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { ReceiptModal } from './ReceiptModal';
 
@@ -393,7 +393,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
       // Sanitize the entire webhook content
       const sanitizedContent = sanitizeDiscordContent(webhookContent);
-
+      
       // Fetch site config for the webhook URL
       const { data: configData, error: configError } = await supabase
         .from('site_config')
@@ -657,7 +657,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       
       // Insert the order into the database
       const { data: insertData, error: insertError } = await supabase
-        .from('orders')
+            .from('orders')
         .insert([orderData])
         .select();
         
@@ -671,7 +671,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       
       // Update receipt data for the confirmation modal
       setReceiptData({
-        ...orderData,
+          ...orderData,
         payment_proof: paymentProofUrl,
         orderId: insertData[0]?.id || 'N/A'
       });
@@ -811,9 +811,9 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
               <VisuallyHidden.Root>Complete Your Order</VisuallyHidden.Root>
             </DialogTitle>
             
-            <p id="order-form-description" className="sr-only">
-              Order form for purchasing {selectedRank} rank on Champa Store
-            </p>
+            <DialogDescription id="order-form-description">
+              Order form for purchasing a rank on the Champa Store. Complete all required fields to submit your order.
+            </DialogDescription>
             
             <button
               onClick={onClose}
@@ -843,24 +843,24 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
             )}
 
             {!initialLoading && (
-              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                 {/* Enhanced summary with discount if applicable */}
-                <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 transform transition-all duration-300 hover:border-emerald-500/50">
-                  <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
-                    <Info size={18} className="text-emerald-400" />
-                    Order Summary
-                  </h3>
-                  <div className="space-y-2 text-sm sm:text-base">
-                    <div className="flex justify-between text-gray-300">
-                      <span>Selected Rank:</span>
-                      <span className="font-medium">{selectedRank}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-300">
-                      <span>Platform:</span>
-                      <span className="font-medium capitalize">{platform}</span>
-                    </div>
-                    <div className="flex justify-between text-gray-300">
-                      <span>Price:</span>
+              <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 transform transition-all duration-300 hover:border-emerald-500/50">
+                <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
+                  <Info size={18} className="text-emerald-400" />
+                  Order Summary
+                </h3>
+                <div className="space-y-2 text-sm sm:text-base">
+                  <div className="flex justify-between text-gray-300">
+                    <span>Selected Rank:</span>
+                    <span className="font-medium">{selectedRank}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-300">
+                    <span>Platform:</span>
+                    <span className="font-medium capitalize">{platform}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-300">
+                    <span>Price:</span>
                       {selectedRankOption?.originalPrice && selectedRankOption.originalPrice > selectedRankOption.price ? (
                         <div className="flex flex-col items-end">
                           <span className="line-through text-gray-500 text-xs">${selectedRankOption.originalPrice.toFixed(2)}</span>
@@ -869,118 +869,118 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                       ) : (
                         <span className="font-medium text-emerald-400">${selectedRankPrice.toFixed(2)}</span>
                       )}
-                    </div>
                   </div>
                 </div>
+              </div>
 
-                <div>
-                  <label className="text-sm font-medium text-gray-300 mb-1 flex items-center gap-2">
-                    <User size={16} className="text-emerald-400" />
-                    Minecraft Username
-                  </label>
-                  <input
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm sm:text-base transition-all duration-200"
-                    required
-                    placeholder="Enter your Minecraft username"
-                    autoFocus
+              <div>
+                <label className="text-sm font-medium text-gray-300 mb-1 flex items-center gap-2">
+                  <User size={16} className="text-emerald-400" />
+                  Minecraft Username
+                </label>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm sm:text-base transition-all duration-200"
+                  required
+                  placeholder="Enter your Minecraft username"
+                  autoFocus
+                />
+                <p className="text-xs text-gray-500 mt-1 ml-1">Only letters, numbers, and underscores allowed</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Platform
+                </label>
+                <div className="flex gap-2">
+                  <PlatformButton 
+                    label="java" 
+                    isSelected={platform === 'java'} 
+                    onClick={() => setPlatform('java')} 
                   />
-                  <p className="text-xs text-gray-500 mt-1 ml-1">Only letters, numbers, and underscores allowed</p>
+                  <PlatformButton 
+                    label="bedrock" 
+                    isSelected={platform === 'bedrock'} 
+                    onClick={() => setPlatform('bedrock')} 
+                  />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Platform
-                  </label>
-                  <div className="flex gap-2">
-                    <PlatformButton 
-                      label="java" 
-                      isSelected={platform === 'java'} 
-                      onClick={() => setPlatform('java')} 
-                    />
-                    <PlatformButton 
-                      label="bedrock" 
-                      isSelected={platform === 'bedrock'} 
-                      onClick={() => setPlatform('bedrock')} 
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Select Rank
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-1">
+                  Select Rank
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                     {ranks.map((rank) => (
-                      <RankButton
-                        key={rank.name}
-                        rank={rank}
-                        isSelected={selectedRank === rank.name}
-                        onClick={() => setSelectedRank(rank.name)}
-                      />
-                    ))}
-                  </div>
+                    <RankButton
+                      key={rank.name}
+                      rank={rank}
+                      isSelected={selectedRank === rank.name}
+                      onClick={() => setSelectedRank(rank.name)}
+                    />
+                  ))}
                 </div>
+              </div>
 
-                {/* Rank Preview Section */}
-                {selectedRankOption && (
-                  <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 hover:border-emerald-500/30 transition-all duration-300">
-                    <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
-                      <Shield size={18} className="text-emerald-400" />
-                      {selectedRank} Rank Preview
-                    </h3>
-                    <div className="flex justify-center">
-                      <img 
-                        src={selectedRankOption.image} 
-                        alt={`${selectedRank} Kit Preview`}
-                        className="w-auto h-auto max-w-full max-h-[250px] object-contain rounded-lg border border-gray-600 transition-transform duration-300 hover:scale-[1.02] shadow-lg"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Payment Details Section */}
+              {/* Rank Preview Section */}
+              {selectedRankOption && (
                 <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 hover:border-emerald-500/30 transition-all duration-300">
                   <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
-                    <CreditCard size={18} className="text-emerald-400" />
-                    Payment Details
+                    <Shield size={18} className="text-emerald-400" />
+                    {selectedRank} Rank Preview
                   </h3>
-                  <div className="text-center">
-                    <p className="text-gray-300 mb-3 text-sm sm:text-base">Scan the QR code below to pay:</p>
-                    <div className="bg-white p-2 sm:p-4 rounded-lg inline-block transition-transform duration-300 hover:scale-[1.02] shadow-lg">
-                      <img 
-                        src={qrCodeImage} 
-                        alt="Payment QR Code"
-                        className="w-36 h-36 sm:w-48 sm:h-48 mx-auto"
-                      />
-                    </div>
-                    <p className="text-xs sm:text-sm text-gray-400 mt-2">Amount: <span className="text-emerald-400 font-bold">${selectedRankPrice}</span></p>
+                  <div className="flex justify-center">
+                    <img 
+                      src={selectedRankOption.image} 
+                      alt={`${selectedRank} Kit Preview`}
+                      className="w-auto h-auto max-w-full max-h-[250px] object-contain rounded-lg border border-gray-600 transition-transform duration-300 hover:scale-[1.02] shadow-lg"
+                    />
                   </div>
                 </div>
+              )}
+
+              {/* Payment Details Section */}
+              <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 hover:border-emerald-500/30 transition-all duration-300">
+                <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
+                  <CreditCard size={18} className="text-emerald-400" />
+                  Payment Details
+                </h3>
+                <div className="text-center">
+                  <p className="text-gray-300 mb-3 text-sm sm:text-base">Scan the QR code below to pay:</p>
+                  <div className="bg-white p-2 sm:p-4 rounded-lg inline-block transition-transform duration-300 hover:scale-[1.02] shadow-lg">
+                    <img 
+                        src={qrCodeImage} 
+                      alt="Payment QR Code"
+                      className="w-36 h-36 sm:w-48 sm:h-48 mx-auto"
+                    />
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-400 mt-2">Amount: <span className="text-emerald-400 font-bold">${selectedRankPrice}</span></p>
+                </div>
+              </div>
 
                 {/* Replace the file upload section with enhanced version */}
                 {renderFileUploadSection()}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-4 transition duration-300 disabled:opacity-50 transform hover:scale-[1.02] text-sm sm:text-base font-medium mt-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-opacity-50 shadow-lg"
-                >
-                  {loading ? (
-                    <span className="flex items-center justify-center">
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Processing...
-                    </span>
-                  ) : (
-                    'Submit Order'
-                  )}
-                </button>
-              </form>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-4 transition duration-300 disabled:opacity-50 transform hover:scale-[1.02] text-sm sm:text-base font-medium mt-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-opacity-50 shadow-lg"
+              >
+                {loading ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </span>
+                ) : (
+                  'Submit Order'
+                )}
+              </button>
+            </form>
             )}
           </DialogContent>
         </Dialog>
@@ -991,7 +991,11 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         <ReceiptModal 
           isOpen={showReceipt} 
           onClose={handleReceiptClose} 
-          orderData={receiptData} 
+          orderData={receiptData}
+          receiptBackgroundUrl={receiptImage}
+          receiptLogoUrl={receiptLogoImage}
+          logoUrl={logoImage}
+          storeName="Champa Store"
         />
       )}
     </>

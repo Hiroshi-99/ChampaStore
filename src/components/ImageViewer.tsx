@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCw, Download } from 'lucide-react';
-import { APP_CONFIG } from '../lib/config';
 
 interface ImageViewerProps {
   imageUrl: string;
@@ -21,7 +20,7 @@ export default function ImageViewer({
   enableControls = true,
   enableDownload = true,
   enableRotate = true,
-  disableAnimation = !APP_CONFIG.features.enableAnimations,
+  disableAnimation = false,
 }: ImageViewerProps) {
   // State for image manipulation
   const [scale, setScale] = useState(initialScale);

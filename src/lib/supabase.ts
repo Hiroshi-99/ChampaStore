@@ -32,14 +32,66 @@ export async function checkSupabaseBuckets() {
   }
 }
 
-// Auto-check buckets when in development mode
-if (import.meta.env.DEV) {
-  checkSupabaseBuckets().then(hasStorageBuckets => {
-    if (!hasStorageBuckets) {
-      console.warn('⚠️ No Supabase storage buckets detected. File uploads may fail.');
-      console.info('💡 Create a bucket named "storage" or "public" in your Supabase dashboard.');
+// Attempt to create a storage bucket if none exist
+export async function createStorageBucket(bucketName = 'storage') {
+  try {
+    // First check if bucket already exists
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+    
+    if (listError) {
+      console.error('Error checking existing buckets:', listError);
+      return false;
     }
-  });
+    
+    // If the bucket already exists, no need to create it
+    if (buckets && buckets.some(bucket => bucket.name === bucketName)) {
+      console.log(`Bucket '${bucketName}' already exists`);
+      return true;
+    }
+    
+    // Try to create the bucket
+    const { data, error } = await supabase.storage.createBucket(bucketName, {
+      public: true,
+      fileSizeLimit: 5 * 1024 * 1024, // 5MB limit
+    });
+    
+    if (error) {
+      // Most likely because user doesn't have permission
+      console.error(`Failed to create bucket '${bucketName}':`, error);
+      return false;
+    }
+    
+    console.log(`Successfully created storage bucket '${bucketName}'`);
+    return true;
+  } catch (error) {
+    console.error('Error creating storage bucket:', error);
+    return false;
+  }
+}
+
+// Initialize storage on app start
+async function initializeStorage() {
+  const hasBuckets = await checkSupabaseBuckets();
+  
+  if (!hasBuckets) {
+    console.warn('⚠️ No Supabase storage buckets detected. Attempting to create one...');
+    
+    // Try to create the default buckets
+    const storageCreated = await createStorageBucket('storage');
+    const publicCreated = !storageCreated ? await createStorageBucket('public') : false;
+    
+    if (storageCreated || publicCreated) {
+      console.info('✅ Successfully created a storage bucket.');
+    } else {
+      console.warn('⚠️ Could not create storage buckets. File uploads will fall back to data URLs.');
+      console.info('💡 Please create a bucket manually in your Supabase dashboard or check your permissions.');
+    }
+  }
+}
+
+// Auto-initialize storage when in development mode
+if (import.meta.env.DEV) {
+  initializeStorage();
 }
 
 export default supabase;
