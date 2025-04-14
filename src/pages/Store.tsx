@@ -1,5 +1,6 @@
-import React, { useState, memo, lazy, Suspense } from 'react';
+import React, { useState, memo, lazy, Suspense, useEffect } from 'react';
 import { ShoppingCart, Check, Server } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
 // Lazy load modals for better initial load performance
 const OrderModal = lazy(() => import('../components/OrderModal'));
@@ -93,6 +94,14 @@ const MinecraftAccountCard = memo(() => (
 const Store: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState<boolean>(false);
   const [isServerStatusModalOpen, setIsServerStatusModalOpen] = useState<boolean>(false);
+  const [config, setConfig] = useState({
+    site_title: 'CHAMPA STORE',
+    logo_image: 'https://i.imgur.com/ArKEQz1.png',
+    banner_image: '/images/banner.gif',
+    background_video_url: '/videos/background.mp4'
+  });
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Feature items data
   const featureItems = [
@@ -101,6 +110,76 @@ const Store: React.FC = () => {
     { icon: Check, title: "Priority Support", description: "Get priority access to support services" },
     { icon: Check, title: "Custom Perks", description: "Unique perks based on your rank level" }
   ];
+
+  // Fetch site configuration
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('site_config')
+          .select('*');
+          
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          const configObj = data.reduce((acc: any, item: any) => {
+            acc[item.key] = item.value;
+            return acc;
+          }, {});
+          
+          setConfig({
+            site_title: configObj.site_title || 'CHAMPA STORE',
+            logo_image: configObj.logo_image || 'https://i.imgur.com/ArKEQz1.png',
+            banner_image: configObj.banner_image || '/images/banner.gif',
+            background_video_url: configObj.background_video_url || '/videos/background.mp4'
+          });
+          
+          setMaintenanceMode(configObj.maintenance_mode === 'true');
+        }
+      } catch (error) {
+        console.error('Error fetching site config:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchConfig();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
+
+  if (maintenanceMode) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-900 p-4">
+        <h1 className="text-3xl md:text-4xl text-white font-bold mb-4 text-center">Maintenance Mode</h1>
+        <p className="text-gray-300 text-center mb-8 max-w-lg">
+          We're currently updating our store. Please check back soon!
+        </p>
+        <div className="flex gap-4">
+          <a 
+            href="https://discord.gg/champa" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded transition-colors"
+          >
+            Join Discord
+          </a>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen relative">
@@ -117,7 +196,7 @@ const Store: React.FC = () => {
             filter: 'brightness(0.4)'
           }}
         >
-          <source src="/videos/background.mp4" type="video/mp4" />
+          <source src={config.background_video_url} type="video/mp4" />
           {/* Fallback to gradient background if video doesn't load */}
           <div 
             className="absolute inset-0 z-0 bg-gradient-to-b from-gray-900 to-gray-800"
@@ -131,7 +210,7 @@ const Store: React.FC = () => {
         <header className="p-4 sm:p-6 flex justify-between items-center border-b border-white/10">
           <div className="flex items-center gap-3">
             <img 
-              src="https://i.imgur.com/ArKEQz1.png" 
+              src={config.logo_image} 
               alt="Champa Logo" 
               className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border-2 border-emerald-500"
               width={40}
@@ -139,7 +218,7 @@ const Store: React.FC = () => {
               loading="eager"
               fetchPriority="high"
             />
-            <h1 className="text-white text-xl sm:text-2xl font-bold tracking-wider">CHAMPA STORE</h1>
+            <h1 className="text-white text-xl sm:text-2xl font-bold tracking-wider">{config.site_title}</h1>
           </div>
           
           {/* Join Champa Now Button */}
@@ -166,7 +245,7 @@ const Store: React.FC = () => {
           <div className="relative w-full overflow-hidden rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl">
             <div className="w-full h-[200px] sm:h-[300px] md:h-[400px]">
               <img 
-                src="/images/banner.gif"
+                src={config.banner_image}
                 alt="Champa Banner"
                 className="w-full h-full object-cover"
                 loading="eager"
@@ -201,34 +280,29 @@ const Store: React.FC = () => {
         </main>
 
         {/* Footer */}
-        <footer className="p-4 sm:p-6 text-center text-white/80 text-xs sm:text-sm border-t border-white/10 mt-auto">
-          <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-3 sm:gap-4">
-            <div>
-              Copyright © 2024-2025 ChampaMCxDL. All Rights Reserved.
-            </div>
-            <div className="flex gap-4 sm:gap-6 mt-2 md:mt-0">
-              <a href="#" className="hover:text-emerald-400 transition-colors">Terms</a>
-              <a href="#" className="hover:text-emerald-400 transition-colors">Privacy</a>
-              <a href="#" className="hover:text-emerald-400 transition-colors">Contact</a>
-            </div>
+        <footer className="p-4 sm:p-6 border-t border-white/10 text-center text-gray-400 text-sm">
+          <p>© {new Date().getFullYear()} {config.site_title}. All rights reserved.</p>
+          <div className="mt-2 flex justify-center gap-4">
+            <a href="#" className="hover:text-white transition-colors">Terms</a>
+            <a href="#" className="hover:text-white transition-colors">Privacy</a>
+            <a href="/admin" className="hover:text-white transition-colors">Admin</a>
           </div>
         </footer>
       </div>
-      
-      {/* Lazy loaded modals */}
+
+      {/* Modals */}
       <Suspense fallback={null}>
         {isOrderModalOpen && (
-      <OrderModal
-        isOpen={isOrderModalOpen}
-        onClose={() => setIsOrderModalOpen(false)}
-      />
+          <OrderModal
+            isOpen={isOrderModalOpen}
+            onClose={() => setIsOrderModalOpen(false)}
+          />
         )}
-
         {isServerStatusModalOpen && (
-      <ServerStatusModal
-        isOpen={isServerStatusModalOpen}
-        onClose={() => setIsServerStatusModalOpen(false)}
-      />
+          <ServerStatusModal
+            isOpen={isServerStatusModalOpen}
+            onClose={() => setIsServerStatusModalOpen(false)}
+          />
         )}
       </Suspense>
     </div>
