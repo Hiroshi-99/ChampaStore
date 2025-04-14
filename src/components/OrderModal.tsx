@@ -416,32 +416,132 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         .select('id')
         .limit(1);
 
+      // If there's a table issue, try to handle it gracefully
       if (checkError) {
         console.error('Table check error:', checkError);
         
-        // If there's an issue with the table, attempt to provide helpful information
-        if (checkError.message.includes('relation "orders" does not exist')) {
-          throw new Error('Orders table does not exist. Please contact support.');
+        // If the table doesn't exist, we might try creating it (if user has permissions)
+        if (checkError.message && checkError.message.includes('relation "orders" does not exist')) {
+          console.log('Attempting to create orders table as it does not exist...');
+          
+          try {
+            // This will only work if the connected user has create table permissions
+            const createResult = await supabase.rpc('create_orders_table_if_not_exists');
+            console.log('Create table result:', createResult);
+            
+            // Wait a moment for the table to be available
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } catch (createError) {
+            console.error('Failed to create orders table:', createError);
+            throw new Error('The order system is currently being set up. Please try again later or contact support.');
+          }
         }
       }
 
-      // Insert the order with explicit column selection
-      const { error: orderError, data: orderResponse } = await supabase
-        .from('orders')
-        .insert(orderData)
-        .select('id');
+      // Validate order data one more time before submitting
+      const requiredFields = ['username', 'platform', 'rank', 'price', 'payment_proof', 'created_at', 'status'];
+      const missingFields = requiredFields.filter(field => !orderData[field as keyof typeof orderData]);
+      
+      if (missingFields.length > 0) {
+        console.error('Missing required fields:', missingFields);
+        throw new Error(`Missing required order information: ${missingFields.join(', ')}`);
+      }
+
+      // Insert the order with retry mechanism for transient errors
+      let orderError = null;
+      let orderResponse = null;
+      let retryCount = 0;
+      const maxRetries = 2;
+
+      while (retryCount <= maxRetries) {
+        try {
+          const result = await supabase
+            .from('orders')
+            .insert(orderData)
+            .select('id');
+          
+          orderError = result.error;
+          orderResponse = result.data;
+          
+          // If successful or non-transient error, break out of retry loop
+          if (!orderError || (orderError.code !== '53300' && orderError.code !== '40001')) {
+            break;
+          }
+          
+          // If we get here, it's a transient error worth retrying
+          retryCount++;
+          console.log(`Retrying order creation (attempt ${retryCount}/${maxRetries})...`);
+          
+          // Add exponential backoff
+          await new Promise(resolve => setTimeout(resolve, retryCount * 1000));
+        } catch (e) {
+          console.error('Unexpected error during order creation:', e);
+          orderError = { message: 'Unexpected error occurred', code: 'unknown' };
+          break;
+        }
+      }
+
+      // For resilience, also save to localStorage as a fallback
+      try {
+        // Generate a unique ID for localStorage tracking
+        const localOrderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        
+        // Store in localStorage as a backup
+        const storedOrders = JSON.parse(localStorage.getItem('pendingOrders') || '[]');
+        storedOrders.push({
+          ...orderData,
+          localOrderId,
+          created_at: new Date().toISOString(),
+          paymentProofUrl: publicUrl // Also store the full URL
+        });
+        
+        // Limit to maximum 10 pending orders to prevent localStorage overflow
+        if (storedOrders.length > 10) {
+          storedOrders.splice(0, storedOrders.length - 10);
+        }
+        
+        localStorage.setItem('pendingOrders', JSON.stringify(storedOrders));
+      } catch (localStorageError) {
+        console.error('Failed to save order to localStorage:', localStorageError);
+        // Continue anyway, this is just a fallback
+      }
 
       if (orderError) {
-        console.error('Order error:', orderError);
+        // Log detailed error information for debugging
+        console.error('Order error details:', {
+          errorMessage: orderError.message,
+          errorCode: orderError.code,
+          details: orderError.details,
+          hint: orderError.hint,
+          fullError: JSON.stringify(orderError),
+          retryAttempts: retryCount
+        });
         
-        // Provide more specific error messages based on common issues
-        if (orderError.message && orderError.message.includes('violates not-null constraint')) {
+        // Provide more specific error messages based on common Supabase error codes
+        if (orderError.code === '23502') { // not_null_violation
+          throw new Error('Missing required field in order data. Please try again or contact support.');
+        } else if (orderError.code === '23505') { // unique_violation
+          throw new Error('This order already exists. Please try again with different information.');
+        } else if (orderError.code === '42P01') { // undefined_table
+          throw new Error('The orders database is currently unavailable. Please try again later.');
+        } else if (orderError.code === '42703') { // undefined_column
+          throw new Error('Order data format error. Please try again or contact support.');
+        } else if (orderError.code === '28000' || orderError.code === '28P01') { // invalid_authorization
+          throw new Error('Database authentication error. Please try again later.');
+        } else if (orderError.message && orderError.message.includes('violates not-null constraint')) {
           throw new Error('Missing required field in order data. Please try again or contact support.');
         } else if (orderError.message && orderError.message.includes('duplicate key')) {
           throw new Error('This order already exists. Please try again with different information.');
         } else {
-          throw new Error('Failed to create order. Please try again.');
+          // Fallback error message
+          throw new Error('Failed to create order. Please try again later.');
         }
+      }
+
+      // Check if we actually got a valid order response
+      if (!orderResponse || !orderResponse[0] || !orderResponse[0].id) {
+        console.error('No valid order ID returned despite successful operation');
+        // Continue anyway but log the issue
       }
 
       // Send order information to Discord with the direct public URL
