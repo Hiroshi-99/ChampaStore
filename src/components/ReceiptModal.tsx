@@ -130,6 +130,7 @@ const PaymentProofPreview = memo(({ imageUrl }: { imageUrl: string }) => {
 export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [fadeIn, setFadeIn] = useState<boolean>(false);
+  const [animateComplete, setAnimateComplete] = useState<boolean>(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
   
@@ -217,9 +218,16 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
     if (isOpen) {
       // Delay fade-in for smoother entry 
       const timer = setTimeout(() => setFadeIn(true), 50);
-      return () => clearTimeout(timer);
+      // Add completion animation after fade-in
+      const completeTimer = setTimeout(() => setAnimateComplete(true), 400);
+      
+      return () => {
+        clearTimeout(timer);
+        clearTimeout(completeTimer);
+      };
     } else {
       setFadeIn(false);
+      setAnimateComplete(false);
       // Reset image viewer state when modal closes
       setIsImageViewerOpen(false);
     }
@@ -421,7 +429,7 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
   return (
     <Dialog open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
       <DialogContent 
-        className={`bg-gray-800/95 p-4 sm:p-6 md:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto border-gray-700 transform transition-all duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}
+        className={`bg-gray-800/95 p-4 sm:p-6 md:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-700 shadow-xl transform transition-all duration-500 ${fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
         aria-describedby="receipt-description"
       >
         <DialogTitle>
@@ -434,26 +442,35 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
       
         <button
           onClick={onClose}
-          className="absolute right-3 top-3 sm:right-4 sm:top-4 text-gray-400 hover:text-white transition-colors"
+          className="absolute right-3 top-3 sm:right-4 sm:top-4 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-50 rounded-full p-1"
           aria-label="Close receipt"
         >
           <X size={24} />
         </button>
 
+        {/* Success animation that plays on load */}
+        <div className={`absolute inset-0 bg-emerald-500/20 flex items-center justify-center transition-opacity duration-500 ${animateComplete ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <div className="w-20 h-20 rounded-full bg-emerald-500/30 flex items-center justify-center animate-ping">
+            <Check size={40} className="text-emerald-500" />
+          </div>
+        </div>
+
         {/* Receipt Content - Printable Area */}
         <div 
           ref={receiptRef} 
-          className="bg-white text-gray-900 rounded-lg p-5 mb-4 print:shadow-none"
+          className={`bg-white text-gray-900 rounded-xl p-5 mb-4 print:shadow-none transition-all duration-500 ${animateComplete ? 'shadow-lg' : 'shadow-sm'}`}
           aria-labelledby="receipt-title"
         >
           <div className="text-center mb-4 border-b border-gray-200 pb-4 receipt-header">
-            <img 
-              src="https://i.imgur.com/ArKEQz1.png" 
-              alt="Champa Logo" 
-              className="w-16 h-16 mx-auto mb-2 rounded-full border-2 border-emerald-500 logo"
-              width={64}
-              height={64}
-            />
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 p-0.5 mx-auto mb-2 shadow-lg">
+              <img 
+                src="https://i.imgur.com/ArKEQz1.png" 
+                alt="Champa Logo" 
+                className="w-full h-full rounded-full border-2 border-white"
+                width={64}
+                height={64}
+              />
+            </div>
             <h2 id="receipt-title" className="text-2xl font-bold text-emerald-600">Champa Store</h2>
             <p className="text-sm text-gray-600">Purchase Receipt</p>
           </div>
@@ -499,7 +516,7 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
           </div>
           
           <div className="text-center mt-6">
-            <div className="inline-flex items-center justify-center bg-emerald-100 text-emerald-700 py-1 px-3 rounded-full mb-4">
+            <div className="inline-flex items-center justify-center bg-emerald-100 text-emerald-700 py-1 px-3 rounded-full mb-4 shadow-sm">
               <Check size={16} className="mr-1" />
               <span className="text-sm font-medium">Payment Confirmed</span>
             </div>
@@ -514,20 +531,20 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
                 <h4 className="text-sm font-medium text-gray-700">Payment Proof</h4>
                 <button 
                   onClick={openImageViewer}
-                  className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                  className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors duration-200 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-50 rounded px-1"
                 >
                   <Eye size={14} />
                   View
                 </button>
               </div>
               <div 
-                className="bg-gray-50 rounded-lg p-1 cursor-pointer overflow-hidden"
+                className="bg-gray-50 rounded-lg p-1 cursor-pointer overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100"
                 onClick={openImageViewer}
               >
                 <img 
                   src={paymentProofUrl} 
                   alt="Payment Proof" 
-                  className="w-full h-auto object-contain max-h-[150px] rounded"
+                  className="w-full h-auto object-contain max-h-[150px] rounded transition-transform duration-300 hover:scale-[1.02]"
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   crossOrigin="anonymous"
@@ -547,52 +564,66 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
           <Button
             onClick={handlePrint}
             disabled={isPrinting}
-            className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white"
+            className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white active:scale-95 transform transition-all duration-200 shadow-md hover:shadow-lg disabled:shadow-none"
             variant="default"
           >
             <Printer size={16} className="mr-2" />
-            {isPrinting ? 'Printing...' : 'Print Receipt'}
+            {isPrinting ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Printing...
+              </span>
+            ) : 'Print Receipt'}
           </Button>
           <Button
             onClick={onClose}
-            className="flex-1"
+            className="flex-1 active:scale-95 transform transition-all duration-200 hover:bg-gray-700/30"
             variant="outline"
           >
             Close
           </Button>
         </div>
-      </DialogContent>
 
-      {/* Full Screen Image Viewer */}
-      {isImageViewerOpen && paymentProofUrl && (
-        <div 
-          className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4"
-          onClick={() => setIsImageViewerOpen(false)}
-        >
-          <button 
-            onClick={(e) => {
-              e.stopPropagation(); // Prevent double-handling
-              setIsImageViewerOpen(false);
-            }}
-            className="absolute top-4 right-4 bg-gray-800/70 hover:bg-gray-700 p-2 rounded-full text-white"
-            aria-label="Close preview"
+        {/* Full Screen Image Viewer */}
+        {isImageViewerOpen && paymentProofUrl && (
+          <div 
+            className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 animate-fadeIn"
+            onClick={() => setIsImageViewerOpen(false)}
           >
-            <X size={20} />
-          </button>
-          <img 
-            src={paymentProofUrl} 
-            alt="Payment Proof" 
-            className="max-w-full max-h-[90vh] object-contain"
-            referrerPolicy="no-referrer"
-            crossOrigin="anonymous"
-            onError={(e) => {
-              console.error("Failed to load image:", paymentProofUrl);
-              (e.target as HTMLImageElement).onerror = null;
-              (e.target as HTMLImageElement).src = 'https://i.imgur.com/JzDJS2A.png'; // Placeholder for failed image
-            }}
-          />
-        </div>
-      )}
+            <button 
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent double-handling
+                setIsImageViewerOpen(false);
+              }}
+              className="absolute right-4 top-4 bg-gray-800/70 hover:bg-gray-700 p-2 rounded-full text-white transition-colors duration-200 shadow-lg hover:rotate-90 transform"
+              aria-label="Close preview"
+            >
+              <X size={20} />
+            </button>
+            
+            <div className="relative max-w-full max-h-[90vh]">
+              <img 
+                src={paymentProofUrl} 
+                alt="Payment Proof" 
+                className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl animate-zoomIn"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+                onError={(e) => {
+                  console.error("Failed to load image:", paymentProofUrl);
+                  (e.target as HTMLImageElement).onerror = null;
+                  (e.target as HTMLImageElement).src = 'https://i.imgur.com/JzDJS2A.png'; // Placeholder for failed image
+                }}
+              />
+              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full">
+                Click anywhere to close
+              </div>
+            </div>
+          </div>
+        )}
+      </DialogContent>
     </Dialog>
   );
 } 

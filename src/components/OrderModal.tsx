@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { X, Upload, Info, CreditCard, User, Shield } from 'lucide-react';
+import { X, Upload, Info, CreditCard, User, Shield, Check } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { sanitizeInput, sanitizeDiscordContent } from '../utils/sanitize';
@@ -122,9 +122,13 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const [selectedRank, setSelectedRank] = useState<string>('VIP');
   const [paymentProof, setPaymentProof] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingStage, setLoadingStage] = useState<'uploading' | 'processing' | 'finalizing' | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const [orderComplete, setOrderComplete] = useState(false);
+
+  // Form steps for guided flow
+  const [formStep, setFormStep] = useState<'info' | 'payment' | 'confirmation'>('info');
 
   // If order complete and receipt is showing, hide the order form
   const showOrderForm = isOpen && !(orderComplete && showReceipt);
@@ -311,6 +315,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setLoadingStage('uploading');
 
     try {
       // Rate limit check using combined identifiers for stronger protection
@@ -553,7 +558,15 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         // Continue with success even if Discord notification fails
       }
 
-      toast.success('Order submitted successfully! We will process your order.');
+      toast.success('Order submitted successfully! We will process your order.', {
+        duration: 5000,
+        style: {
+          borderRadius: '10px',
+          background: '#10b981',
+          color: '#fff',
+        },
+        icon: '🎉',
+      });
       
       // Prepare receipt data
       const orderCompleteData = {
@@ -604,6 +617,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       toast.error(errorMessage);
     } finally {
       setLoading(false);
+      setLoadingStage(null);
     }
   };
 
@@ -620,7 +634,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       {showOrderForm && (
         <Dialog open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
           <DialogContent 
-            className="bg-gray-800/95 rounded-2xl p-4 sm:p-6 md:p-8 w-full max-w-2xl m-2 sm:m-4 relative max-h-[90vh] overflow-y-auto"
+            className="bg-gray-800/95 rounded-2xl p-4 sm:p-6 md:p-8 w-full max-w-2xl m-2 sm:m-4 relative max-h-[90vh] overflow-y-auto transition-all duration-300 ease-in-out shadow-xl border border-gray-700"
             aria-describedby="order-form-description"
           >
             <DialogTitle>
@@ -633,19 +647,49 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
             
             <button
               onClick={onClose}
-              className="absolute right-3 top-3 sm:right-4 sm:top-4 text-gray-400 hover:text-white transition-colors"
+              className="absolute right-3 top-3 sm:right-4 sm:top-4 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-50 rounded-full p-1"
               aria-label="Close modal"
             >
               <X size={24} />
             </button>
 
             <div className="text-center mb-6">
+              <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg">
+                <img 
+                  src="https://i.imgur.com/ArKEQz1.png" 
+                  alt="" 
+                  className="w-16 h-16 rounded-full object-cover border-2 border-white"
+                />
+              </div>
               <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">Complete Your Order</h2>
               <p className="text-gray-400 text-sm sm:text-base">Select your platform and rank to proceed with the purchase</p>
             </div>
 
+            {/* Progress Tracker */}
+            <div className="flex justify-between mb-6 px-2">
+              <div className="flex flex-col items-center">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${formStep === 'info' ? 'bg-emerald-500 text-white' : 'bg-gray-700 text-gray-400'} mb-1`}>1</div>
+                <span className="text-xs text-gray-400">Info</span>
+              </div>
+              <div className="flex-1 flex items-center px-2">
+                <div className={`h-1 w-full ${formStep !== 'info' ? 'bg-emerald-500' : 'bg-gray-700'}`}></div>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${formStep === 'payment' ? 'bg-emerald-500 text-white' : 'bg-gray-700 text-gray-400'} mb-1`}>2</div>
+                <span className="text-xs text-gray-400">Payment</span>
+              </div>
+              <div className="flex-1 flex items-center px-2">
+                <div className={`h-1 w-full ${formStep === 'confirmation' ? 'bg-emerald-500' : 'bg-gray-700'}`}></div>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${formStep === 'confirmation' ? 'bg-emerald-500 text-white' : 'bg-gray-700 text-gray-400'} mb-1`}>3</div>
+                <span className="text-xs text-gray-400">Confirm</span>
+              </div>
+            </div>
+
             <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-              <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600">
+              {/* Order summary box - always visible but with fancy highlight on submit */}
+              <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 transform transition-all duration-300 hover:border-emerald-500/50">
                 <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
                   <Info size={18} className="text-emerald-400" />
                   Order Summary
@@ -675,10 +719,12 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm sm:text-base"
+                  className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm sm:text-base transition-all duration-200"
                   required
                   placeholder="Enter your Minecraft username"
+                  autoFocus
                 />
+                <p className="text-xs text-gray-500 mt-1 ml-1">Only letters, numbers, and underscores allowed</p>
               </div>
 
               <div>
@@ -717,7 +763,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
               {/* Rank Preview Section */}
               {selectedRankOption && (
-                <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600">
+                <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 hover:border-emerald-500/30 transition-all duration-300">
                   <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
                     <Shield size={18} className="text-emerald-400" />
                     {selectedRank} Rank Preview
@@ -726,28 +772,28 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                     <img 
                       src={selectedRankOption.image} 
                       alt={`${selectedRank} Kit Preview`}
-                      className="w-auto h-auto max-w-full max-h-[250px] object-contain rounded-lg border border-gray-600"
+                      className="w-auto h-auto max-w-full max-h-[250px] object-contain rounded-lg border border-gray-600 transition-transform duration-300 hover:scale-[1.02] shadow-lg"
                     />
                   </div>
                 </div>
               )}
 
               {/* Payment Details Section */}
-              <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600">
+              <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 hover:border-emerald-500/30 transition-all duration-300">
                 <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
                   <CreditCard size={18} className="text-emerald-400" />
                   Payment Details
                 </h3>
                 <div className="text-center">
                   <p className="text-gray-300 mb-3 text-sm sm:text-base">Scan the QR code below to pay:</p>
-                  <div className="bg-white p-2 sm:p-4 rounded-lg inline-block">
+                  <div className="bg-white p-2 sm:p-4 rounded-lg inline-block transition-transform duration-300 hover:scale-[1.02] shadow-lg">
                     <img 
                       src="/images/qr/qrcode.jpg" 
                       alt="Payment QR Code"
                       className="w-36 h-36 sm:w-48 sm:h-48 mx-auto"
                     />
                   </div>
-                  <p className="text-xs sm:text-sm text-gray-400 mt-2">Amount: ${selectedRankPrice}</p>
+                  <p className="text-xs sm:text-sm text-gray-400 mt-2">Amount: <span className="text-emerald-400 font-bold">${selectedRankPrice}</span></p>
                 </div>
               </div>
 
@@ -766,25 +812,64 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                   />
                   <label
                     htmlFor="payment-proof"
-                    className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 sm:py-3 px-3 sm:px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300 text-sm sm:text-base"
+                    className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 sm:py-3 px-3 sm:px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300 text-sm sm:text-base group"
                   >
-                    <Upload size={18} />
+                    <Upload size={18} className="text-emerald-400 group-hover:scale-110 transition-transform duration-300" />
                     {paymentProof ? (
                       <span className="truncate max-w-full">{paymentProof.name}</span>
                     ) : (
                       'Upload QR Code Screenshot'
                     )}
                   </label>
+                  {paymentProof && (
+                    <div className="mt-2 bg-emerald-500/10 rounded-lg p-2 border border-emerald-500/30 text-xs text-emerald-400 flex items-center">
+                      <Check size={16} className="mr-1" /> File selected successfully
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Loading Overlay */}
+              {loading && (
+                <div className="bg-gray-800/95 border border-emerald-500/20 rounded-lg p-4 shadow-lg animate-pulse">
+                  <div className="flex items-center justify-center space-x-3">
+                    <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                    <div className="text-sm text-gray-300">
+                      {loadingStage === 'uploading' && 'Uploading payment proof...'}
+                      {loadingStage === 'processing' && 'Processing your order...'}
+                      {loadingStage === 'finalizing' && 'Finalizing your purchase...'}
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-700 h-2 mt-3 rounded-full overflow-hidden">
+                    <div 
+                      className="bg-gradient-to-r from-emerald-400 to-emerald-600 h-full rounded-full" 
+                      style={{ 
+                        width: loadingStage === 'uploading' ? '30%' : 
+                               loadingStage === 'processing' ? '60%' : '90%',
+                        transition: 'width 0.5s ease-in-out'
+                      }}
+                    ></div>
+                  </div>
+                </div>
+              )}
 
               {/* Form submission button */}
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-4 transition duration-300 disabled:opacity-50 transform hover:scale-[1.02] text-sm sm:text-base font-medium mt-2"
+                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-4 transition duration-300 disabled:opacity-50 transform hover:scale-[1.02] text-sm sm:text-base font-medium mt-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-opacity-50 shadow-lg"
               >
-                {loading ? 'Processing...' : 'Submit Order'}
+                {loading ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing...
+                  </span>
+                ) : (
+                  'Submit Order'
+                )}
               </button>
             </form>
           </DialogContent>
