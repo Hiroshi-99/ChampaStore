@@ -3,6 +3,7 @@ import { X, Upload, Info, CreditCard, User, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { sanitizeInput, sanitizeDiscordContent } from '../utils/sanitize';
+import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { ReceiptModal } from './ReceiptModal';
 
 interface OrderModalProps {
@@ -616,8 +617,19 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     <>
       {/* Main Order Form Modal */}
       {showOrderForm && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 overflow-hidden">
-          <div className="bg-gray-800/95 rounded-2xl p-4 sm:p-6 md:p-8 w-full max-w-2xl m-2 sm:m-4 relative max-h-[90vh] overflow-y-auto">
+        <Dialog open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
+          <DialogContent 
+            className="bg-gray-800/95 rounded-2xl p-4 sm:p-6 md:p-8 w-full max-w-2xl m-2 sm:m-4 relative max-h-[90vh] overflow-y-auto"
+            aria-describedby="order-form-description"
+          >
+            <DialogTitle className="sr-only" id="order-form-title">
+              Complete Your Order
+            </DialogTitle>
+            
+            <p id="order-form-description" className="sr-only">
+              Order form for purchasing {selectedRank} rank on Champa Store
+            </p>
+            
             <button
               onClick={onClose}
               className="absolute right-3 top-3 sm:right-4 sm:top-4 text-gray-400 hover:text-white transition-colors"
@@ -765,6 +777,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                 </div>
               </div>
 
+              {/* Form submission button */}
               <button
                 type="submit"
                 disabled={loading}
@@ -773,8 +786,8 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                 {loading ? 'Processing...' : 'Submit Order'}
               </button>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
       
       {/* Receipt Modal - This is rendered at the top level for better visibility */}
