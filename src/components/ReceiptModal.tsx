@@ -1,4 +1,4 @@
-import React, { useRef, useCallback, memo, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useCallback, memo, useState, useEffect, useMemo, lazy, Suspense } from 'react';
 import { X, Check, User, CreditCard, ImageIcon, ZoomIn, Eye, Shield, Printer } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import toast from 'react-hot-toast';
@@ -6,6 +6,20 @@ import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { Button } from "../ui/button";
 import { sanitizeInput } from '../utils/sanitize';
+import { APP_CONFIG } from '../lib/config';
+
+// Lazy loaded image viewer component to reduce initial bundle size
+const ImageViewer = lazy(() => import('./ImageViewer'));
+
+// Fallback image viewer in case the main component fails to load
+const FallbackImageViewer = ({ onClose, imageUrl }: { onClose: () => void; imageUrl: string }) => (
+  <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 animate-fadeIn">
+    <button onClick={onClose} className="absolute right-4 top-4 bg-gray-800/70 p-2 rounded-full text-white">
+      <X size={20} />
+    </button>
+    <img src={imageUrl} alt="Preview" className="max-w-full max-h-[90vh] object-contain" />
+  </div>
+);
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -19,6 +33,13 @@ interface ReceiptModalProps {
     payment_proof?: string;
     orderId?: string;
   };
+  theme?: {
+    colorScheme?: 'default' | 'dark' | 'light',
+    primaryColor?: string,
+    animations?: boolean
+  };
+  showPaymentProof?: boolean;
+  printEnabled?: boolean;
 }
 
 // Memoized receipt detail row component
@@ -44,24 +65,45 @@ const ReceiptDetailRow = memo(({
   </div>
 ));
 
-// Memoized payment proof component
-const PaymentProofPreview = memo(({ imageUrl }: { imageUrl: string }) => {
+// Optimized payment proof component with preloading and error boundaries
+const PaymentProofPreview = memo(({ 
+  imageUrl, 
+  onToggleZoom,
+  altText = "Payment Proof",
+  maxHeight = 200
+}: { 
+  imageUrl: string; 
+  onToggleZoom: () => void;
+  altText?: string;
+  maxHeight?: number;
+}) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [isZoomed, setIsZoomed] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
-  const handleLoad = useCallback(() => {
-    setIsLoading(false);
-  }, []);
-
-  const handleError = useCallback(() => {
-    setIsLoading(false);
-    setError(true);
-  }, []);
-
-  const toggleZoom = useCallback(() => {
-    setIsZoomed(prev => !prev);
-  }, []);
+  // Preload image 
+  useEffect(() => {
+    if (!imageUrl) return;
+    
+    // Create new image to preload
+    const img = new Image();
+    
+    img.onload = () => setIsLoading(false);
+    img.onerror = () => {
+      setIsLoading(false);
+      setError(true);
+      console.error("Failed to load image:", imageUrl);
+    };
+    
+    // Start loading
+    img.src = imageUrl;
+    
+    return () => {
+      // Cancel loading
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [imageUrl]);
 
   if (!imageUrl) return null;
 
@@ -71,16 +113,19 @@ const PaymentProofPreview = memo(({ imageUrl }: { imageUrl: string }) => {
         <div className="text-xs text-gray-500 mb-2">Payment Proof</div>
         {!error && !isLoading && (
           <button 
-            onClick={toggleZoom} 
+            onClick={onToggleZoom} 
             className="text-xs text-emerald-500 hover:text-emerald-400 flex items-center gap-1"
-            title={isZoomed ? "Close preview" : "View larger image"}
+            title="View larger image"
           >
-            {isZoomed ? <X size={14} /> : <ZoomIn size={14} />}
-            {isZoomed ? "Close" : "Enlarge"}
+            <ZoomIn size={14} />
+            Enlarge
           </button>
         )}
       </div>
-      <div className={`relative bg-gray-900/50 rounded-lg overflow-hidden ${isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'}`} onClick={!error && !isLoading ? toggleZoom : undefined}>
+      <div 
+        className={`relative bg-gray-900/50 rounded-lg overflow-hidden ${!error && !isLoading ? 'cursor-zoom-in' : ''}`} 
+        onClick={!error && !isLoading ? onToggleZoom : undefined}
+      >
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-800/50">
             <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
@@ -93,46 +138,52 @@ const PaymentProofPreview = memo(({ imageUrl }: { imageUrl: string }) => {
           </div>
         ) : (
           <img 
+            ref={imgRef}
             src={imageUrl} 
-            alt="Payment Proof" 
-            className={`w-full h-auto object-contain transition-all duration-300 ${isZoomed ? 'max-h-[400px]' : 'max-h-[200px]'}`}
-            onLoad={handleLoad}
-            onError={handleError}
+            alt={altText} 
+            className={`w-full h-auto object-contain transition-all duration-300`}
+            style={{ maxHeight: `${maxHeight}px` }}
+            onError={() => setError(true)}
+            loading="lazy"
+            crossOrigin="anonymous" 
           />
         )}
       </div>
-      
-      {/* Fullscreen modal for zoomed image */}
-      {isZoomed && !error && !isLoading && (
-        <div 
-          className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4"
-          onClick={toggleZoom}
-        >
-          <button 
-            onClick={toggleZoom}
-            className="absolute top-4 right-4 bg-gray-800/70 hover:bg-gray-700 p-2 rounded-full text-white"
-            aria-label="Close preview"
-          >
-            <X size={20} />
-          </button>
-          <img 
-            src={imageUrl} 
-            alt="Payment Proof" 
-            className="max-w-full max-h-[90vh] object-contain"
-          />
-        </div>
-      )}
     </div>
   );
 });
 
-// Optimized Receipt Modal component
-export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) {
+// Optimized Receipt Modal component with enhanced configurability
+export function ReceiptModal({ 
+  isOpen, 
+  onClose, 
+  orderData,
+  theme = { 
+    colorScheme: 'default',
+    primaryColor: APP_CONFIG.primaryColor,
+    animations: APP_CONFIG.features.enableAnimations
+  },
+  showPaymentProof = APP_CONFIG.features.showPaymentProof,
+  printEnabled = true
+}: ReceiptModalProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
   const [fadeIn, setFadeIn] = useState<boolean>(false);
   const [animateComplete, setAnimateComplete] = useState<boolean>(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+  
+  // Color scheme based on theme
+  const colors = useMemo(() => {
+    const primaryColor = theme.primaryColor || APP_CONFIG.primaryColor;
+    return {
+      primary: APP_CONFIG.colors.primary,
+      headerBg: `bg-gradient-to-br ${APP_CONFIG.colors.primary.light}`,
+      confirmBg: `bg-${primaryColor}-100`,
+      confirmText: `text-${primaryColor}-700`,
+      accent: `text-${primaryColor}-500`,
+      accentHover: `hover:text-${primaryColor}-400`,
+    };
+  }, [theme.primaryColor]);
   
   // Destructure orderData with default empty object for null/undefined cases
   const { 
@@ -148,15 +199,20 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
   // Format date once when component renders
   const formattedTime = useMemo(() => {
     if (!time) return '';
-    const date = new Date(time);
-    return date.toLocaleString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hour12: true
-    });
+    try {
+      const date = new Date(time);
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: true
+      });
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      return time; // Fallback to original string
+    }
   }, [time]);
 
   // Generate receipt number only once
@@ -164,9 +220,9 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
     return orderData.orderId || `CS-${Date.now().toString().slice(-8)}`;
   }, [orderData.orderId]);
   
-  // Get payment proof URL if available
+  // Get payment proof URL if available, with error handling and caching
   const paymentProofUrl = useMemo(() => {
-    if (!payment_proof) return '';
+    if (!payment_proof || !showPaymentProof) return '';
     
     try {
       // If it's already a full URL, validate and use it directly
@@ -178,258 +234,99 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
           return ''; // Return empty string to prevent loading malicious URLs
         }
         
-        // Handle CSP restrictions by proxying through our server or converting to data URL
-        // Option 1: Proxy through Netlify function
-        return `/.netlify/functions/image-proxy?url=${encodeURIComponent(payment_proof)}`;
-        
-        // Option 2: Or convert to Imgur URL if it's from Supabase
-        // This is a fallback approach - replace with your actual Imgur image
-        // if (payment_proof.includes('supabase.co')) {
-        //   return 'https://i.imgur.com/JzDJS2A.png'; // Default fallback image
-        // }
-        
-        // return payment_proof;
+        // Use configured image proxy
+        return `${APP_CONFIG.api.imageProxyUrl}?url=${encodeURIComponent(payment_proof)}`;
       }
       
       // Otherwise, construct the URL using the Supabase pattern with URL encoding
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ymzksxrmsocggozepqsu.supabase.co';
       const encodedPath = encodeURIComponent(payment_proof);
       
-      // Use the proxy for Supabase URLs as well
-      return `/.netlify/functions/image-proxy?url=${encodeURIComponent(`${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`)}`;
-      
+      // Use the configured proxy
+      return `${APP_CONFIG.api.imageProxyUrl}?url=${encodeURIComponent(`${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`)}`;
     } catch (error) {
       console.error('Error constructing payment proof URL:', error);
       return ''; // Return empty string to prevent loading invalid URLs
     }
-  }, [payment_proof]);
+  }, [payment_proof, showPaymentProof]);
   
-  // Ensure payment proof URL is valid for display
+  // Enhanced animations with configurability
   useEffect(() => {
-    if (paymentProofUrl && isOpen) {
-      // Preload the image to check if it's valid
-      const img = new Image();
-      img.src = paymentProofUrl;
-    }
-  }, [paymentProofUrl, isOpen]);
-  
-  // Enhanced entry animation
-  useEffect(() => {
-    if (isOpen) {
-      // Delay fade-in for smoother entry 
-      const timer = setTimeout(() => setFadeIn(true), 50);
-      // Add completion animation after fade-in
-      const completeTimer = setTimeout(() => setAnimateComplete(true), 400);
-      
-      return () => {
-        clearTimeout(timer);
-        clearTimeout(completeTimer);
-      };
-    } else {
+    if (!isOpen) {
       setFadeIn(false);
       setAnimateComplete(false);
-      // Reset image viewer state when modal closes
       setIsImageViewerOpen(false);
+      return;
     }
-  }, [isOpen]);
-
-  // Custom print function with security enhancements
-  const handlePrintReceipt = useCallback(() => {
-    if (!receiptRef.current) return;
     
-    try {
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        toast.error('Please allow popups for this website to print receipts');
-        return;
-      }
-      
-      // Sanitize content for the print window
-      const sanitizedUsername = sanitizeInput(username);
-      const receiptContent = receiptRef.current.innerHTML;
-      
-      // Apply Content-Security-Policy to the printed document
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>ChampaStore Receipt - ${sanitizedUsername}</title>
-            <meta charset="utf-8" />
-            <meta name="viewport" content="width=device-width, initial-scale=1" />
-            <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'unsafe-inline';">
-            <style>
-              body {
-                font-family: 'Helvetica', 'Arial', sans-serif;
-                padding: 20px;
-                max-width: 800px;
-                margin: 0 auto;
-                color: #333;
-              }
-              .container {
-                padding: 20px;
-                border-radius: 8px;
-                border: 1px solid #e2e8f0;
-              }
-              .text-emerald-600 { color: #059669; }
-              .text-emerald-500 { color: #10b981; }
-              .receipt-header {
-                text-align: center;
-                border-bottom: 1px solid #e2e8f0;
-                padding-bottom: 15px;
-                margin-bottom: 15px;
-              }
-              .logo {
-                width: 64px;
-                height: 64px;
-                margin: 0 auto 10px;
-                display: block;
-                border-radius: 50%;
-                border: 2px solid #10b981;
-              }
-              h2 { margin: 5px 0; color: #059669; }
-              @media print {
-                body { 
-                  -webkit-print-color-adjust: exact;
-                  print-color-adjust: exact;
-                }
-                .no-print { display: none; }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              ${receiptContent}
-            </div>
-            <script>
-              window.onload = function() { 
-                try {
-                  window.print(); 
-                  setTimeout(function() { window.close(); }, 500);
-                } catch(e) {
-                  console.error('Print error:', e);
-                }
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      
-      printWindow.document.close();
-    } catch (error) {
-      console.error('Print window error:', error);
-      toast.error('Failed to open print window');
+    if (!theme.animations) {
+      // Skip animations if disabled
+      setFadeIn(true);
+      setAnimateComplete(true);
+      return;
     }
-  }, [username]);
+    
+    // Delay fade-in for smoother entry 
+    const timer = setTimeout(() => setFadeIn(true), APP_CONFIG.animations.duration.fast / 10);
+    // Add completion animation after fade-in
+    const completeTimer = setTimeout(() => setAnimateComplete(true), APP_CONFIG.animations.duration.normal);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(completeTimer);
+    };
+  }, [isOpen, theme.animations]);
 
-  // Close modal on escape key
+  // Handle image viewer
+  const toggleImageViewer = useCallback(() => {
+    if (paymentProofUrl) {
+      setIsImageViewerOpen(prev => !prev);
+    }
+  }, [paymentProofUrl]);
+
+  // Fixed useReactToPrint implementation with proper typing
+  const handlePrint = useReactToPrint({
+    documentTitle: `Receipt-${username}-${rank}`,
+    onAfterPrint: () => toast.success('Receipt printed successfully'),
+    onPrintError: () => toast.error('Failed to print receipt'),
+    // Use properly typed content getter function
+    contentRef: receiptRef
+  });
+
+  // Effect to handle escape key and shortcuts
   useEffect(() => {
-    const handleEscape = (e: KeyboardEvent) => {
+    const handleKeyPress = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (isImageViewerOpen) {
           setIsImageViewerOpen(false);
         } else {
           onClose();
         }
+      } else if (e.key === 'p' && e.ctrlKey && printEnabled) {
+        e.preventDefault();
+        handlePrint();
       }
     };
     
     if (isOpen) {
-      window.addEventListener('keydown', handleEscape);
-      // Animate in
-      setTimeout(() => setFadeIn(true), 10);
+      window.addEventListener('keydown', handleKeyPress);
     }
     
     return () => {
-      window.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('keydown', handleKeyPress);
     };
-  }, [isOpen, onClose, isImageViewerOpen]);
-  
-  // Handle print functionality
-  const handlePrint = useCallback(() => {
-    if (!receiptRef.current) return;
-    
-    setIsPrinting(true);
-    
-    // Add print styling specific class
-    document.body.classList.add('printing-receipt');
-    
-    try {
-      const printContent = receiptRef.current.innerHTML;
-      const printWindow = window.open('', '_blank');
-      
-      if (!printWindow) {
-        throw new Error('Could not open print window');
-      }
-      
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Receipt #${order_id}</title>
-            <style>
-              body { 
-                font-family: system-ui, -apple-system, sans-serif;
-                background: white;
-                color: black;
-                padding: 2rem;
-                max-width: 800px;
-                margin: 0 auto;
-              }
-              .receipt-header {
-                text-align: center;
-                margin-bottom: 1.5rem;
-                border-bottom: 1px solid #ccc;
-                padding-bottom: 1rem;
-              }
-              .receipt-row {
-                display: flex;
-                justify-content: space-between;
-                margin-bottom: 0.5rem;
-                padding: 0.25rem 0;
-              }
-              .receipt-row:not(:last-child) {
-                border-bottom: 1px dashed #eee;
-              }
-              img { max-width: 100%; max-height: 300px; }
-              .payment-proof { margin-top: 2rem; border-top: 1px solid #ccc; padding-top: 1rem; }
-              .payment-proof-title { font-size: 0.875rem; color: #555; margin-bottom: 0.5rem; }
-              @media print {
-                body { padding: 0; }
-                button { display: none; }
-              }
-            </style>
-          </head>
-          <body>
-            <div class="receipt-content">
-              ${printContent}
-            </div>
-            <script>
-              window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };
-            </script>
-          </body>
-        </html>
-      `);
-    } catch (error) {
-      console.error('Print error:', error);
-    } finally {
-      // Cleanup
-      document.body.classList.remove('printing-receipt');
-      setIsPrinting(false);
-    }
-  }, [order_id, receiptRef]);
+  }, [isOpen, onClose, isImageViewerOpen, handlePrint, printEnabled]);
 
-  // Open payment proof in full image viewer
-  const openImageViewer = useCallback(() => {
-    if (paymentProofUrl) {
-      setIsImageViewerOpen(true);
-    }
-  }, [paymentProofUrl]);
-
+  // If modal is closed, don't render anything (performance optimization)
   if (!isOpen) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
       <DialogContent 
-        className={`bg-gray-800/95 p-4 sm:p-6 md:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-700 shadow-xl transform transition-all duration-500 ${fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+        className={`bg-gray-800/95 p-4 sm:p-6 md:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-700 shadow-xl transform transition-all 
+          ${theme.animations 
+            ? `duration-${APP_CONFIG.animations.duration.normal} ${fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}` 
+            : 'opacity-100'}`}
         aria-describedby="receipt-description"
       >
         <DialogTitle>
@@ -437,7 +334,7 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
         </DialogTitle>
         
         <p id="receipt-description" className="sr-only">
-          Your purchase receipt for {rank} rank on Champa Store
+          Your purchase receipt for {rank} rank on {APP_CONFIG.storeName}
         </p>
       
         <button
@@ -448,30 +345,36 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
           <X size={24} />
         </button>
 
-        {/* Success animation that plays on load */}
-        <div className={`absolute inset-0 bg-emerald-500/20 flex items-center justify-center transition-opacity duration-500 ${animateComplete ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-          <div className="w-20 h-20 rounded-full bg-emerald-500/30 flex items-center justify-center animate-ping">
-            <Check size={40} className="text-emerald-500" />
+        {/* Success animation that plays on load - conditionally rendered based on theme.animations */}
+        {theme.animations && (
+          <div className={`absolute inset-0 bg-emerald-500/20 flex items-center justify-center transition-opacity duration-500 ${animateComplete ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className="w-20 h-20 rounded-full bg-emerald-500/30 flex items-center justify-center animate-ping">
+              <Check size={40} className="text-emerald-500" />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Receipt Content - Printable Area */}
         <div 
           ref={receiptRef} 
-          className={`bg-white text-gray-900 rounded-xl p-5 mb-4 print:shadow-none transition-all duration-500 ${animateComplete ? 'shadow-lg' : 'shadow-sm'}`}
+          className={`bg-white text-gray-900 rounded-xl p-5 mb-4 print:shadow-none transition-all
+            ${theme.animations ? `duration-${APP_CONFIG.animations.duration.normal} ${animateComplete ? 'shadow-lg' : 'shadow-sm'}` : 'shadow-lg'}`}
           aria-labelledby="receipt-title"
         >
           <div className="text-center mb-4 border-b border-gray-200 pb-4 receipt-header">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 p-0.5 mx-auto mb-2 shadow-lg">
+            <div className={`w-20 h-20 rounded-full ${colors.headerBg} p-0.5 mx-auto mb-2 shadow-lg`}>
               <img 
-                src="https://i.imgur.com/ArKEQz1.png" 
-                alt="Champa Logo" 
+                src={APP_CONFIG.logoUrl} 
+                alt="Store Logo" 
                 className="w-full h-full rounded-full border-2 border-white"
                 width={64}
                 height={64}
+                loading="eager"
               />
             </div>
-            <h2 id="receipt-title" className="text-2xl font-bold text-emerald-600">Champa Store</h2>
+            <h2 id="receipt-title" className={`text-2xl font-bold text-${APP_CONFIG.primaryColor}-600`}>
+              {APP_CONFIG.storeName}
+            </h2>
             <p className="text-sm text-gray-600">Purchase Receipt</p>
           </div>
           
@@ -516,7 +419,7 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
           </div>
           
           <div className="text-center mt-6">
-            <div className="inline-flex items-center justify-center bg-emerald-100 text-emerald-700 py-1 px-3 rounded-full mb-4 shadow-sm">
+            <div className={`inline-flex items-center justify-center ${colors.confirmBg} ${colors.confirmText} py-1 px-3 rounded-full mb-4 shadow-sm`}>
               <Check size={16} className="mr-1" />
               <span className="text-sm font-medium">Payment Confirmed</span>
             </div>
@@ -524,14 +427,14 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
             <p className="text-xs text-gray-500 mt-1">Login to the server to claim your rank</p>
           </div>
           
-          {/* Payment Proof Section - Only shown if available */}
-          {payment_proof && paymentProofUrl && (
+          {/* Payment Proof Section - Only shown if available and enabled */}
+          {showPaymentProof && payment_proof && paymentProofUrl && (
             <div className="mt-6 pt-4 border-t border-gray-200">
               <div className="flex items-center justify-between mb-2">
                 <h4 className="text-sm font-medium text-gray-700">Payment Proof</h4>
                 <button 
-                  onClick={openImageViewer}
-                  className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1 transition-colors duration-200 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-50 rounded px-1"
+                  onClick={toggleImageViewer}
+                  className={`text-xs text-${APP_CONFIG.primaryColor}-600 hover:text-${APP_CONFIG.primaryColor}-700 flex items-center gap-1 transition-colors duration-200 hover:underline focus:outline-none focus:ring-2 focus:ring-${APP_CONFIG.primaryColor}-500 focus:ring-opacity-50 rounded px-1`}
                 >
                   <Eye size={14} />
                   View
@@ -539,12 +442,12 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
               </div>
               <div 
                 className="bg-gray-50 rounded-lg p-1 cursor-pointer overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100"
-                onClick={openImageViewer}
+                onClick={toggleImageViewer}
               >
                 <img 
                   src={paymentProofUrl} 
                   alt="Payment Proof" 
-                  className="w-full h-auto object-contain max-h-[150px] rounded transition-transform duration-300 hover:scale-[1.02]"
+                  className={`w-full h-auto object-contain max-h-[150px] rounded ${theme.animations ? 'transition-transform duration-300 hover:scale-[1.02]' : ''}`}
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   crossOrigin="anonymous"
@@ -561,67 +464,43 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
 
         {/* Action Buttons */}
         <div className="flex gap-3 mt-4">
-          <Button
-            onClick={handlePrint}
-            disabled={isPrinting}
-            className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white active:scale-95 transform transition-all duration-200 shadow-md hover:shadow-lg disabled:shadow-none"
-            variant="default"
-          >
-            <Printer size={16} className="mr-2" />
-            {isPrinting ? (
-              <span className="flex items-center">
-                <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Printing...
-              </span>
-            ) : 'Print Receipt'}
-          </Button>
+          {printEnabled && (
+            <Button 
+              variant="outline" 
+              className="mt-4 w-full flex items-center justify-center gap-2 text-white bg-zinc-800 hover:bg-zinc-700 border-none"
+              onClick={() => handlePrint()}
+            >
+              <Printer size={16} />
+              Print Receipt
+            </Button>
+          )}
           <Button
             onClick={onClose}
-            className="flex-1 active:scale-95 transform transition-all duration-200 hover:bg-gray-700/30"
+            className={`flex-1 ${theme.animations ? 'active:scale-95 transform transition-all duration-200' : ''} hover:bg-gray-700/30`}
             variant="outline"
           >
             Close
           </Button>
         </div>
 
-        {/* Full Screen Image Viewer */}
+        {/* Full Screen Image Viewer - Lazy loaded with enhanced configuration */}
         {isImageViewerOpen && paymentProofUrl && (
-          <div 
-            className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4 animate-fadeIn"
-            onClick={() => setIsImageViewerOpen(false)}
-          >
-            <button 
-              onClick={(e) => {
-                e.stopPropagation(); // Prevent double-handling
-                setIsImageViewerOpen(false);
-              }}
-              className="absolute right-4 top-4 bg-gray-800/70 hover:bg-gray-700 p-2 rounded-full text-white transition-colors duration-200 shadow-lg hover:rotate-90 transform"
-              aria-label="Close preview"
-            >
-              <X size={20} />
-            </button>
-            
-            <div className="relative max-w-full max-h-[90vh]">
-              <img 
-                src={paymentProofUrl} 
-                alt="Payment Proof" 
-                className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl animate-zoomIn"
-                referrerPolicy="no-referrer"
-                crossOrigin="anonymous"
-                onError={(e) => {
-                  console.error("Failed to load image:", paymentProofUrl);
-                  (e.target as HTMLImageElement).onerror = null;
-                  (e.target as HTMLImageElement).src = 'https://i.imgur.com/JzDJS2A.png'; // Placeholder for failed image
-                }}
-              />
-              <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full">
-                Click anywhere to close
-              </div>
+          <Suspense fallback={
+            <div className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center">
+              <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
-          </div>
+          }>
+            <ImageViewer 
+              imageUrl={paymentProofUrl}
+              onClose={toggleImageViewer}
+              alt={`Payment proof for ${username}'s ${rank} rank purchase`}
+              initialScale={1}
+              enableControls={true}
+              enableDownload={true}
+              enableRotate={true}
+              disableAnimation={!theme.animations}
+            />
+          </Suspense>
         )}
       </DialogContent>
     </Dialog>
