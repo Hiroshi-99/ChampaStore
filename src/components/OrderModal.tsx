@@ -15,6 +15,7 @@ interface OrderModalProps {
 interface RankOption {
   name: string;
   price: number;
+  originalPrice?: number; // Optional original price for discounts
   color: string;
   image: string;
 }
@@ -63,7 +64,7 @@ const PlatformButton = memo(({
   </button>
 ));
 
-// Memoized rank button component
+// Memoized rank button component with improved discount display
 const RankButton = memo(({ 
   rank, 
   isSelected, 
@@ -83,7 +84,16 @@ const RankButton = memo(({
     }`}
   >
     <div className="font-medium truncate">{rank.name}</div>
-    <div className="text-xs sm:text-sm">${rank.price}</div>
+    <div className="text-xs sm:text-sm">
+      {rank.originalPrice && rank.originalPrice > rank.price ? (
+        <div className="flex flex-col items-center">
+          <span className="line-through text-gray-400 text-xs">${rank.originalPrice.toFixed(2)}</span>
+          <span className="text-emerald-300 font-semibold">${rank.price.toFixed(2)}</span>
+        </div>
+      ) : (
+        <span>${rank.price.toFixed(2)}</span>
+      )}
+    </div>
   </button>
 ));
 
@@ -105,6 +115,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const [receiptLogoImage, setReceiptLogoImage] = useState('https://i.imgur.com/ArKEQz1.png');
   const [logoImage, setLogoImage] = useState<string>('https://i.imgur.com/ArKEQz1.png');
   const [initialLoading, setInitialLoading] = useState(true);
+  const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null);
 
   // Form steps for guided flow
   const [formStep, setFormStep] = useState<'info' | 'payment' | 'confirmation'>('info');
@@ -129,6 +140,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
           const formattedRanks = productsData.map(product => ({
             name: product.name,
             price: parseFloat(product.price),
+            originalPrice: product.original_price ? parseFloat(product.original_price) : undefined,
             color: product.color || 'from-emerald-500 to-emerald-600',
             image: product.image_url || 'https://i.imgur.com/NX3RB4i.png'
           }));
@@ -244,10 +256,31 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     return true;
   }, []);
 
+  // Enhanced file upload handler with preview and validation
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setPaymentProof(e.target.files[0]);
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    // Validate file size
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error('Image is too large (max 3MB)');
+      return;
     }
+    
+    // Validate file type
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('Please upload a JPG, PNG, or WebP image');
+      return;
+    }
+    
+    setPaymentProof(file);
+    
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setPaymentProofPreview(previewUrl);
+    
+    // Clean up preview URL when component unmounts
+    return () => URL.revokeObjectURL(previewUrl);
   }, []);
 
   const sendToDiscord = async (orderData: any, paymentProofUrl: string) => {
@@ -562,6 +595,91 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     }, 500);
   };
 
+  // Cleanup function for any created object URLs
+  useEffect(() => {
+    return () => {
+      if (paymentProofPreview) {
+        URL.revokeObjectURL(paymentProofPreview);
+      }
+    };
+  }, [paymentProofPreview]);
+
+  // Enhanced file upload section with preview
+  const renderFileUploadSection = () => (
+    <div>
+      <label className="block text-sm font-medium text-gray-300 mb-1">
+        Payment Proof (QR Code Screenshot)
+      </label>
+      <div className="relative">
+        <input
+          type="file"
+          onChange={handleFileChange}
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          id="payment-proof"
+          required
+        />
+        <label
+          htmlFor="payment-proof"
+          className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 sm:py-3 px-3 sm:px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300 text-sm sm:text-base group"
+        >
+          <Upload size={18} className="text-emerald-400 group-hover:scale-110 transition-transform duration-300" />
+          {paymentProof ? (
+            <span className="truncate max-w-full">{paymentProof.name}</span>
+          ) : (
+            'Upload QR Code Screenshot'
+          )}
+        </label>
+        
+        {paymentProofPreview && (
+          <div className="mt-3 relative animate-fadeIn">
+            <div className="bg-gray-700/50 rounded-lg overflow-hidden border border-gray-600 group relative transition-all hover:border-emerald-500/50 shadow-md">
+              <img 
+                src={paymentProofPreview} 
+                alt="Payment proof preview" 
+                className="w-full h-auto max-h-[200px] object-contain rounded transition-transform duration-300 group-hover:scale-[1.02]"
+                onLoad={() => console.log('Preview image loaded')}
+                onError={() => {
+                  toast.error('Failed to load image preview');
+                  setPaymentProofPreview(null);
+                }}
+              />
+              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+            </div>
+            <div className="absolute top-2 right-2 flex gap-1">
+              <button 
+                type="button"
+                onClick={() => {
+                  setPaymentProof(null);
+                  setPaymentProofPreview(null);
+                }}
+                className="bg-gray-800/80 text-white p-1.5 rounded-full hover:bg-red-500 transition-colors duration-200 shadow-md"
+                aria-label="Remove image"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div className="mt-2 text-xs text-emerald-400 flex items-center justify-center">
+              <Check size={12} className="mr-1" /> Image ready for submission
+            </div>
+          </div>
+        )}
+        
+        {paymentProof && !paymentProofPreview && (
+          <div className="mt-2 bg-gray-700/50 rounded-lg p-3 border border-gray-600 text-xs flex items-center justify-center animate-pulse">
+            <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
+            <span className="text-gray-300">Processing image...</span>
+          </div>
+        )}
+        
+        <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+          <Info size={12} />
+          <span>Accepted formats: JPG, PNG, WebP (max 3MB)</span>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <>
       {/* Main Order Form Modal */}
@@ -608,7 +726,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
             {!initialLoading && (
               <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-                {/* Order summary box - always visible but with fancy highlight on submit */}
+                {/* Enhanced summary with discount if applicable */}
                 <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 transform transition-all duration-300 hover:border-emerald-500/50">
                   <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
                     <Info size={18} className="text-emerald-400" />
@@ -625,7 +743,14 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                     </div>
                     <div className="flex justify-between text-gray-300">
                       <span>Price:</span>
-                      <span className="font-medium text-emerald-400">${selectedRankPrice}</span>
+                      {selectedRankOption?.originalPrice && selectedRankOption.originalPrice > selectedRankOption.price ? (
+                        <div className="flex flex-col items-end">
+                          <span className="line-through text-gray-500 text-xs">${selectedRankOption.originalPrice.toFixed(2)}</span>
+                          <span className="font-medium text-emerald-400">${selectedRankOption.price.toFixed(2)}</span>
+                        </div>
+                      ) : (
+                        <span className="font-medium text-emerald-400">${selectedRankPrice.toFixed(2)}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -717,37 +842,8 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    Payment Proof (QR Code Screenshot)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      onChange={handleFileChange}
-                      accept="image/*"
-                      className="hidden"
-                      id="payment-proof"
-                      required
-                    />
-                    <label
-                      htmlFor="payment-proof"
-                      className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 sm:py-3 px-3 sm:px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300 text-sm sm:text-base group"
-                    >
-                      <Upload size={18} className="text-emerald-400 group-hover:scale-110 transition-transform duration-300" />
-                      {paymentProof ? (
-                        <span className="truncate max-w-full">{paymentProof.name}</span>
-                      ) : (
-                        'Upload QR Code Screenshot'
-                      )}
-                    </label>
-                    {paymentProof && (
-                      <div className="mt-2 bg-emerald-500/10 rounded-lg p-2 border border-emerald-500/30 text-xs text-emerald-400 flex items-center">
-                        <Check size={16} className="mr-1" /> File selected successfully
-                      </div>
-                    )}
-                  </div>
-                </div>
+                {/* Replace the file upload section with enhanced version */}
+                {renderFileUploadSection()}
 
                 <button
                   type="submit"

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Save, Image, DollarSign, Percent, Settings, LogOut, ShoppingCart, FileText } from 'lucide-react';
+import { Save, Image, DollarSign, Percent, Settings, LogOut, ShoppingCart, FileText, X } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -50,6 +50,14 @@ const AdminDashboard: React.FC = () => {
     await supabase.auth.signOut();
     navigate('/admin');
   };
+
+  // Admin tabs
+  const tabs = [
+    { id: 'images', label: 'Images', icon: <Image size={18} /> },
+    { id: 'prices', label: 'Prices & Discounts', icon: <DollarSign size={18} /> },
+    { id: 'orders', label: 'Orders', icon: <ShoppingCart size={18} /> },
+    { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
+  ];
 
   if (loading) {
     return (
@@ -112,7 +120,7 @@ const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex">
+    <div className="min-h-screen bg-gray-900 text-white">
       {/* Sidebar */}
       <div className="w-64 bg-gray-800 border-r border-gray-700">
         <div className="p-4 border-b border-gray-700">
@@ -120,55 +128,18 @@ const AdminDashboard: React.FC = () => {
         </div>
         
         <nav className="mt-4">
-          <button
-            onClick={() => setActiveTab('images')}
-            className={`w-full text-left px-4 py-3 flex items-center gap-3 ${
-              activeTab === 'images' ? 'bg-gray-700 text-emerald-400' : 'text-gray-300 hover:bg-gray-700/50'
-            }`}
-          >
-            <Image size={18} />
-            <span>Images</span>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('prices')}
-            className={`w-full text-left px-4 py-3 flex items-center gap-3 ${
-              activeTab === 'prices' ? 'bg-gray-700 text-emerald-400' : 'text-gray-300 hover:bg-gray-700/50'
-            }`}
-          >
-            <DollarSign size={18} />
-            <span>Prices</span>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('discounts')}
-            className={`w-full text-left px-4 py-3 flex items-center gap-3 ${
-              activeTab === 'discounts' ? 'bg-gray-700 text-emerald-400' : 'text-gray-300 hover:bg-gray-700/50'
-            }`}
-          >
-            <Percent size={18} />
-            <span>Discounts</span>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`w-full text-left px-4 py-3 flex items-center gap-3 ${
-              activeTab === 'orders' ? 'bg-gray-700 text-emerald-400' : 'text-gray-300 hover:bg-gray-700/50'
-            }`}
-          >
-            <ShoppingCart size={18} />
-            <span>Orders</span>
-          </button>
-          
-          <button
-            onClick={() => setActiveTab('settings')}
-            className={`w-full text-left px-4 py-3 flex items-center gap-3 ${
-              activeTab === 'settings' ? 'bg-gray-700 text-emerald-400' : 'text-gray-300 hover:bg-gray-700/50'
-            }`}
-          >
-            <Settings size={18} />
-            <span>Settings</span>
-          </button>
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-full text-left px-4 py-3 flex items-center gap-3 ${
+                activeTab === tab.id ? 'bg-gray-700 text-emerald-400' : 'text-gray-300 hover:bg-gray-700/50'
+              }`}
+            >
+              {tab.icon}
+              <span>{tab.label}</span>
+            </button>
+          ))}
         </nav>
         
         <div className="absolute bottom-0 left-0 w-64 p-4 border-t border-gray-700">
@@ -182,13 +153,80 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* Main Content */}
-      <div className="flex-1 p-8">
-        {activeTab === 'images' && <ImageManager />}
-        {activeTab === 'prices' && <PriceManager />}
-        {activeTab === 'discounts' && <DiscountManager />}
-        {activeTab === 'orders' && <OrdersManager />}
-        {activeTab === 'settings' && <SettingsManager />}
+      {/* Tab Navigation */}
+      <div className="mb-8 border-b border-gray-800">
+        <div className="container mx-auto px-4">
+          <div className="flex overflow-x-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-4 py-3 flex items-center gap-2 transition-colors ${
+                  activeTab === tab.id
+                    ? 'text-emerald-400 border-b-2 border-emerald-400'
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      
+      {/* Tab Content */}
+      <div className="container mx-auto px-4 pb-12">
+        {/* Protected Content */}
+        {session ? (
+          <>
+            {activeTab === 'images' && <ImageManager />}
+            {activeTab === 'prices' && <PriceManager />}
+            {activeTab === 'orders' && <OrdersManager />}
+            {activeTab === 'settings' && <SettingsManager />}
+          </>
+        ) : (
+          <div className="bg-gray-800 p-8 rounded-xl max-w-md mx-auto">
+            <h2 className="text-2xl font-bold text-white mb-6">Admin Login</h2>
+            
+            {loginError && (
+              <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded mb-4">
+                {loginError}
+              </div>
+            )}
+            
+            <form onSubmit={handleLogin}>
+              <div className="mb-4">
+                <label className="block text-gray-300 mb-2">Email</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+                  required
+                />
+              </div>
+              
+              <div className="mb-6">
+                <label className="block text-gray-300 mb-2">Password</label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+                  required
+                />
+              </div>
+              
+              <button
+                type="submit"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded transition-colors"
+              >
+                Sign In
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -539,6 +577,38 @@ const PriceManager: React.FC = () => {
     ));
   };
   
+  const handleOriginalPriceChange = (id: number, newOriginalPrice: number | null) => {
+    setProducts(products.map(product => 
+      product.id === id ? { ...product, original_price: newOriginalPrice } : product
+    ));
+  };
+  
+  const applyDiscount = (id: number, discountPercentage: number) => {
+    const product = products.find(p => p.id === id);
+    if (!product) return;
+    
+    const currentPrice = parseFloat(product.price);
+    // Set original price to current price if not already set
+    const originalPrice = product.original_price ? parseFloat(product.original_price) : currentPrice;
+    
+    // Calculate new price with discount
+    const discountedPrice = (originalPrice * (100 - discountPercentage) / 100).toFixed(2);
+    
+    setProducts(products.map(p => 
+      p.id === id ? { ...p, price: discountedPrice, original_price: originalPrice } : p
+    ));
+  };
+  
+  const removeDiscount = (id: number) => {
+    const product = products.find(p => p.id === id);
+    if (!product || !product.original_price) return;
+    
+    // Reset price to original price
+    setProducts(products.map(p => 
+      p.id === id ? { ...p, price: product.original_price, original_price: null } : p
+    ));
+  };
+  
   const handleSavePrices = async () => {
     setIsSaving(true);
     
@@ -547,7 +617,10 @@ const PriceManager: React.FC = () => {
       for (const product of products) {
         await supabase
           .from('products')
-          .update({ price: product.price })
+          .update({ 
+            price: product.price,
+            original_price: product.original_price
+          })
           .eq('id', product.id);
       }
       
@@ -566,7 +639,7 @@ const PriceManager: React.FC = () => {
   
   return (
     <div>
-      <h2 className="text-2xl font-bold text-white mb-6">Price Management</h2>
+      <h2 className="text-2xl font-bold text-white mb-6">Price & Discount Management</h2>
       
       {products.length === 0 ? (
         <div className="bg-gray-800 p-6 rounded-xl">
@@ -582,6 +655,8 @@ const PriceManager: React.FC = () => {
                   <th className="text-left py-3 px-4 text-gray-300">Description</th>
                   <th className="text-center py-3 px-4 text-gray-300">Preview</th>
                   <th className="text-left py-3 px-4 text-gray-300">Price ($)</th>
+                  <th className="text-left py-3 px-4 text-gray-300">Original Price ($)</th>
+                  <th className="text-left py-3 px-4 text-gray-300">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -612,6 +687,62 @@ const PriceManager: React.FC = () => {
                         className="w-24 bg-gray-700 text-white border border-gray-600 rounded px-3 py-1 focus:outline-none focus:border-emerald-500"
                       />
                     </td>
+                    <td className="py-3 px-4">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={product.original_price || ''}
+                        onChange={(e) => {
+                          const value = e.target.value ? parseFloat(e.target.value) : null;
+                          handleOriginalPriceChange(product.id, value);
+                        }}
+                        placeholder="No discount"
+                        className="w-24 bg-gray-700 text-white border border-gray-600 rounded px-3 py-1 focus:outline-none focus:border-emerald-500"
+                      />
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-2">
+                        <div className="relative">
+                          <select
+                            className="appearance-none bg-gray-700 text-white border border-gray-600 rounded px-3 py-1 pr-8 focus:outline-none focus:border-emerald-500"
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value);
+                              if (value > 0) {
+                                applyDiscount(product.id, value);
+                              }
+                              e.target.value = ""; // Reset after use
+                            }}
+                            value=""
+                          >
+                            <option value="">Discount %</option>
+                            <option value="5">5% off</option>
+                            <option value="10">10% off</option>
+                            <option value="15">15% off</option>
+                            <option value="20">20% off</option>
+                            <option value="25">25% off</option>
+                            <option value="30">30% off</option>
+                            <option value="40">40% off</option>
+                            <option value="50">50% off</option>
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
+                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                              <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                            </svg>
+                          </div>
+                        </div>
+                        
+                        {product.original_price && (
+                          <button
+                            onClick={() => removeDiscount(product.id)}
+                            className="bg-red-600 hover:bg-red-700 text-white rounded px-2 transition-colors"
+                            title="Remove discount"
+                          >
+                            <X size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -639,201 +770,6 @@ const PriceManager: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
-  );
-};
-
-// Discount Manager Component
-const DiscountManager: React.FC = () => {
-  const [discounts, setDiscounts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [newDiscount, setNewDiscount] = useState({
-    code: '',
-    percentage: 10,
-    active: true,
-    expiry_date: ''
-  });
-  
-  useEffect(() => {
-    const fetchDiscounts = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('discounts')
-          .select('*')
-          .order('id');
-          
-        if (error) throw error;
-        
-        setDiscounts(data || []);
-      } catch (error) {
-        console.error('Error fetching discounts:', error);
-        alert('Failed to load discounts');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchDiscounts();
-  }, []);
-  
-  const handleAddDiscount = async () => {
-    if (!newDiscount.code) {
-      alert('Please enter a discount code');
-      return;
-    }
-    
-    setIsSaving(true);
-    
-    try {
-      const { data, error } = await supabase
-        .from('discounts')
-        .insert([newDiscount])
-        .select();
-        
-      if (error) throw error;
-      
-      setDiscounts([...discounts, data[0]]);
-      setNewDiscount({
-        code: '',
-        percentage: 10,
-        active: true,
-        expiry_date: ''
-      });
-      
-      alert('Discount added successfully!');
-    } catch (error) {
-      console.error('Error adding discount:', error);
-      alert('Failed to add discount. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  const handleToggleDiscount = async (id: number, active: boolean) => {
-    try {
-      await supabase
-        .from('discounts')
-        .update({ active })
-        .eq('id', id);
-        
-      setDiscounts(discounts.map(discount => 
-        discount.id === id ? { ...discount, active } : discount
-      ));
-    } catch (error) {
-      console.error('Error toggling discount:', error);
-      alert('Failed to update discount status');
-    }
-  };
-  
-  if (loading) {
-    return <div className="text-white">Loading discounts...</div>;
-  }
-  
-  return (
-    <div>
-      <h2 className="text-2xl font-bold text-white mb-6">Discount Management</h2>
-      
-      <div className="grid grid-cols-1 gap-8">
-        <div className="bg-gray-800 p-6 rounded-xl">
-          <h3 className="text-xl font-semibold text-white mb-4">Add New Discount</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-gray-300 mb-2">Discount Code</label>
-              <input
-                type="text"
-                value={newDiscount.code}
-                onChange={(e) => setNewDiscount({ ...newDiscount, code: e.target.value.toUpperCase() })}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-                placeholder="SUMMER20"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-gray-300 mb-2">Discount Percentage</label>
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={newDiscount.percentage}
-                onChange={(e) => setNewDiscount({ ...newDiscount, percentage: parseInt(e.target.value) })}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-gray-300 mb-2">Expiry Date (Optional)</label>
-              <input
-                type="date"
-                value={newDiscount.expiry_date}
-                onChange={(e) => setNewDiscount({ ...newDiscount, expiry_date: e.target.value })}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
-          </div>
-          
-          <div className="flex justify-end">
-            <button 
-              onClick={handleAddDiscount}
-              disabled={isSaving}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-2"
-            >
-              {isSaving ? 'Adding...' : 'Add Discount'}
-            </button>
-          </div>
-        </div>
-        
-        <div className="bg-gray-800 p-6 rounded-xl">
-          <h3 className="text-xl font-semibold text-white mb-4">Active Discounts</h3>
-          
-          {discounts.length === 0 ? (
-            <p className="text-gray-300">No discounts found.</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-700">
-                    <th className="text-left py-3 px-4 text-gray-300">Code</th>
-                    <th className="text-left py-3 px-4 text-gray-300">Percentage</th>
-                    <th className="text-left py-3 px-4 text-gray-300">Expiry Date</th>
-                    <th className="text-left py-3 px-4 text-gray-300">Status</th>
-                    <th className="text-left py-3 px-4 text-gray-300">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {discounts.map((discount) => (
-                    <tr key={discount.id} className="border-b border-gray-700">
-                      <td className="py-3 px-4 text-white">{discount.code}</td>
-                      <td className="py-3 px-4 text-gray-300">{discount.percentage}%</td>
-                      <td className="py-3 px-4 text-gray-300">
-                        {discount.expiry_date ? new Date(discount.expiry_date).toLocaleDateString() : 'No expiry'}
-                      </td>
-                      <td className="py-3 px-4">
-                        <span className={`px-2 py-1 rounded text-xs ${discount.active ? 'bg-green-500/20 text-green-300' : 'bg-red-500/20 text-red-300'}`}>
-                          {discount.active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4">
-                        <button
-                          onClick={() => handleToggleDiscount(discount.id, !discount.active)}
-                          className={`text-xs px-3 py-1 rounded ${
-                            discount.active 
-                              ? 'bg-red-600 hover:bg-red-700 text-white' 
-                              : 'bg-green-600 hover:bg-green-700 text-white'
-                          }`}
-                        >
-                          {discount.active ? 'Deactivate' : 'Activate'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      </div>
     </div>
   );
 };
