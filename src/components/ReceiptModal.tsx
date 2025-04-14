@@ -357,12 +357,16 @@ export function ReceiptModal({
         {/* Receipt Content - Printable Area */}
         <div 
           ref={receiptRef} 
-          className={`bg-white text-gray-900 rounded-xl p-5 mb-4 print:shadow-none transition-all
-            ${theme.animations ? `duration-${APP_CONFIG.animations.duration.normal} ${animateComplete ? 'shadow-lg' : 'shadow-sm'}` : 'shadow-lg'}`}
+          className={`bg-white text-gray-900 rounded-xl p-6 mb-4 print:shadow-none transition-all
+            ${theme.animations ? `duration-${APP_CONFIG.animations.duration.normal} ${animateComplete ? 'shadow-xl' : 'shadow-sm'}` : 'shadow-xl'}`}
           aria-labelledby="receipt-title"
         >
-          <div className="text-center mb-4 border-b border-gray-200 pb-4 receipt-header">
-            <div className={`w-20 h-20 rounded-full ${colors.headerBg} p-0.5 mx-auto mb-2 shadow-lg`}>
+          {/* Receipt Header with Logo */}
+          <div className="text-center mb-6 border-b border-gray-200 pb-6 receipt-header relative">
+            <div className="absolute top-0 right-0 text-xs text-gray-500 bg-gray-100 py-1 px-2 rounded-md">
+              #{receiptNumber}
+            </div>
+            <div className={`w-20 h-20 rounded-full ${colors.headerBg} p-0.5 mx-auto mb-3 shadow-lg`}>
               <img 
                 src={APP_CONFIG.logoUrl} 
                 alt="Store Logo" 
@@ -375,52 +379,62 @@ export function ReceiptModal({
             <h2 id="receipt-title" className={`text-2xl font-bold text-${APP_CONFIG.primaryColor}-600`}>
               {APP_CONFIG.storeName}
             </h2>
-            <p className="text-sm text-gray-600">Purchase Receipt</p>
+            <div className="flex items-center justify-center gap-2 mt-1">
+              <div className={`w-2 h-2 rounded-full bg-${APP_CONFIG.primaryColor}-500`}></div>
+              <p className="text-sm text-gray-600 font-medium tracking-wide uppercase">Official Receipt</p>
+              <div className={`w-2 h-2 rounded-full bg-${APP_CONFIG.primaryColor}-500`}></div>
+            </div>
           </div>
           
-          <div className="mb-4 pb-4 border-b border-gray-200">
-            <ReceiptDetailRow
-              label="Receipt ID"
-              value={receiptNumber}
-              icon={<User size={16} />}
-            />
-            <ReceiptDetailRow
-              label="Date"
-              value={formattedTime}
-              icon={<User size={16} />}
-            />
+          {/* Date and Transaction Details */}
+          <div className="mb-5 bg-gray-50 p-4 rounded-lg border border-gray-100">
+            <div className="flex justify-between items-center mb-2">
+              <span className={`text-xs font-medium text-${APP_CONFIG.primaryColor}-600 uppercase tracking-wider`}>Date</span>
+              <span className="text-sm text-gray-700">{formattedTime}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className={`text-xs font-medium text-${APP_CONFIG.primaryColor}-600 uppercase tracking-wider`}>Transaction ID</span>
+              <span className="text-sm text-gray-700 font-mono">{receiptNumber}</span>
+            </div>
           </div>
           
-          <div className="mb-4 pb-4 border-b border-gray-200">
-            <ReceiptDetailRow
-              label="Customer"
-              value={username}
-              icon={<User size={16} />}
-            />
-            <ReceiptDetailRow
-              label="Platform"
-              value={platform === 'java' ? 'Java Edition' : 'Bedrock Edition'}
-              icon={<Shield size={16} />}
-            />
+          {/* Customer Information */}
+          <div className="mb-5">
+            <h3 className={`text-sm font-semibold text-${APP_CONFIG.primaryColor}-600 mb-3 pb-1 border-b border-gray-200`}>Customer Details</h3>
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-500">Username</span>
+                <span className="text-sm font-medium text-gray-700">{username}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-500">Platform</span>
+                <span className="text-sm font-medium text-gray-700">
+                  {platform === 'java' ? 'Java Edition' : 'Bedrock Edition'}
+                </span>
+              </div>
+            </div>
           </div>
           
-          <div className="mb-4 pb-4 border-b border-gray-200">
-            <ReceiptDetailRow
-              label="Purchase"
-              value={`${rank} Rank`}
-              icon={<CreditCard size={16} />}
-            />
-            <ReceiptDetailRow
-              label="Amount"
-              value={`$${price.toFixed(2)}`}
-              icon={<CreditCard size={16} />}
-              isHighlighted
-            />
+          {/* Purchase Information */}
+          <div className="mb-6">
+            <h3 className={`text-sm font-semibold text-${APP_CONFIG.primaryColor}-600 mb-3 pb-1 border-b border-gray-200`}>Purchase Summary</h3>
+            <div className="flex flex-col gap-2">
+              <div className="flex justify-between">
+                <span className="text-xs text-gray-500">Item</span>
+                <span className="text-sm font-medium text-gray-700">{rank} Rank</span>
+              </div>
+              <div className="h-px bg-gray-100 my-2"></div>
+              <div className="flex justify-between">
+                <span className="text-sm font-semibold text-gray-700">Total Amount</span>
+                <span className={`text-base font-bold text-${APP_CONFIG.primaryColor}-600`}>${price.toFixed(2)}</span>
+              </div>
+            </div>
           </div>
           
-          <div className="text-center mt-6">
-            <div className={`inline-flex items-center justify-center ${colors.confirmBg} ${colors.confirmText} py-1 px-3 rounded-full mb-4 shadow-sm`}>
-              <Check size={16} className="mr-1" />
+          {/* Payment Confirmation */}
+          <div className="text-center my-6 bg-gradient-to-r from-gray-50 to-white py-4 px-3 rounded-lg border border-gray-100">
+            <div className={`inline-flex items-center justify-center bg-${APP_CONFIG.primaryColor}-100 text-${APP_CONFIG.primaryColor}-700 py-1.5 px-4 rounded-full mb-3 shadow-sm`}>
+              <Check size={16} className="mr-1.5" />
               <span className="text-sm font-medium">Payment Confirmed</span>
             </div>
             <p className="text-sm text-gray-600 mt-2">Thank you for your purchase!</p>
@@ -429,25 +443,25 @@ export function ReceiptModal({
           
           {/* Payment Proof Section - Only shown if available and enabled */}
           {showPaymentProof && payment_proof && paymentProofUrl && (
-            <div className="mt-6 pt-4 border-t border-gray-200">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-medium text-gray-700">Payment Proof</h4>
+            <div className="mt-6 pt-5 border-t border-gray-200">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className={`text-sm font-semibold text-${APP_CONFIG.primaryColor}-600`}>Payment Proof</h4>
                 <button 
                   onClick={toggleImageViewer}
-                  className={`text-xs text-${APP_CONFIG.primaryColor}-600 hover:text-${APP_CONFIG.primaryColor}-700 flex items-center gap-1 transition-colors duration-200 hover:underline focus:outline-none focus:ring-2 focus:ring-${APP_CONFIG.primaryColor}-500 focus:ring-opacity-50 rounded px-1`}
+                  className={`text-xs bg-${APP_CONFIG.primaryColor}-50 text-${APP_CONFIG.primaryColor}-600 hover:text-${APP_CONFIG.primaryColor}-700 flex items-center gap-1 py-1 px-3 rounded-full transition-colors duration-200 hover:bg-${APP_CONFIG.primaryColor}-100 focus:outline-none focus:ring-2 focus:ring-${APP_CONFIG.primaryColor}-500 focus:ring-opacity-50`}
                 >
                   <Eye size={14} />
-                  View
+                  View Full Image
                 </button>
               </div>
               <div 
-                className="bg-gray-50 rounded-lg p-1 cursor-pointer overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100"
+                className="bg-gray-50 rounded-lg p-2 cursor-pointer overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100"
                 onClick={toggleImageViewer}
               >
                 <img 
                   src={paymentProofUrl} 
                   alt="Payment Proof" 
-                  className={`w-full h-auto object-contain max-h-[150px] rounded ${theme.animations ? 'transition-transform duration-300 hover:scale-[1.02]' : ''}`}
+                  className={`w-full h-auto object-contain max-h-[150px] rounded-md ${theme.animations ? 'transition-all duration-300 hover:scale-[1.02]' : ''}`}
                   loading="lazy"
                   referrerPolicy="no-referrer"
                   crossOrigin="anonymous"
@@ -460,6 +474,13 @@ export function ReceiptModal({
               </div>
             </div>
           )}
+          
+          {/* Footer with Terms and Support Info */}
+          <div className="mt-8 pt-4 border-t border-gray-200 text-center text-xs text-gray-500">
+            <p>For support, please contact us on Discord</p>
+            <p className="mt-1">All purchases are final and non-refundable</p>
+            <div className={`w-8 h-1 bg-${APP_CONFIG.primaryColor}-500 mx-auto mt-3 rounded-full opacity-50`}></div>
+          </div>
         </div>
 
         {/* Action Buttons */}
