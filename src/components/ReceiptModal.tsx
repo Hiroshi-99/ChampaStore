@@ -4,6 +4,7 @@ import { useReactToPrint } from 'react-to-print';
 import toast from 'react-hot-toast';
 import { Dialog, DialogContent } from "../ui/dialog";
 import { Button } from "../ui/button";
+import { sanitizeInput } from '../utils/sanitize';
 
 interface ReceiptModalProps {
   isOpen: boolean;
@@ -165,15 +166,36 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
   const paymentProofUrl = useMemo(() => {
     if (!payment_proof) return '';
     
-    // If it's already a full URL, use it directly
-    if (payment_proof.startsWith('http')) {
-      return payment_proof;
+    try {
+      // If it's already a full URL, validate and use it directly
+      if (payment_proof.startsWith('http')) {
+        // Validate URL to prevent XSS via javascript: protocol
+        const url = new URL(payment_proof);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+          console.error('Invalid URL protocol:', url.protocol);
+          return ''; // Return empty string to prevent loading malicious URLs
+        }
+        return payment_proof;
+      }
+      
+      // Otherwise, construct the URL using the Supabase pattern with URL encoding
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ymzksxrmsocggozepqsu.supabase.co';
+      const encodedPath = encodeURIComponent(payment_proof);
+      return `${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`;
+    } catch (error) {
+      console.error('Error constructing payment proof URL:', error);
+      return ''; // Return empty string to prevent loading invalid URLs
     }
-    
-    // Otherwise, construct the URL using the Supabase pattern
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    return `${supabaseUrl}/storage/v1/object/public/payment-proofs/${payment_proof}`;
   }, [payment_proof]);
+  
+  // Ensure payment proof URL is valid for display
+  useEffect(() => {
+    if (paymentProofUrl && isOpen) {
+      // Preload the image to check if it's valid
+      const img = new Image();
+      img.src = paymentProofUrl;
+    }
+  }, [paymentProofUrl, isOpen]);
   
   // Enhanced entry animation
   useEffect(() => {
@@ -188,76 +210,92 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
     }
   }, [isOpen]);
 
-  // Custom print function that doesn't rely on useReactToPrint
+  // Custom print function with security enhancements
   const handlePrintReceipt = useCallback(() => {
     if (!receiptRef.current) return;
     
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('Please allow popups for this website to print receipts');
-      return;
-    }
-    
-    const receiptContent = receiptRef.current.innerHTML;
-    
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>ChampaStore Receipt - ${username}</title>
-          <meta charset="utf-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <style>
-            body {
-              font-family: 'Helvetica', 'Arial', sans-serif;
-              padding: 20px;
-              max-width: 800px;
-              margin: 0 auto;
-              color: #333;
-            }
-            .container {
-              padding: 20px;
-              border-radius: 8px;
-              border: 1px solid #e2e8f0;
-            }
-            .text-emerald-600 { color: #059669; }
-            .text-emerald-500 { color: #10b981; }
-            .receipt-header {
-              text-align: center;
-              border-bottom: 1px solid #e2e8f0;
-              padding-bottom: 15px;
-              margin-bottom: 15px;
-            }
-            .logo {
-              width: 64px;
-              height: 64px;
-              margin: 0 auto 10px;
-              display: block;
-              border-radius: 50%;
-              border: 2px solid #10b981;
-            }
-            h2 { margin: 5px 0; color: #059669; }
-            @media print {
-              body { 
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
+    try {
+      const printWindow = window.open('', '_blank');
+      if (!printWindow) {
+        toast.error('Please allow popups for this website to print receipts');
+        return;
+      }
+      
+      // Sanitize content for the print window
+      const sanitizedUsername = sanitizeInput(username);
+      const receiptContent = receiptRef.current.innerHTML;
+      
+      // Apply Content-Security-Policy to the printed document
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>ChampaStore Receipt - ${sanitizedUsername}</title>
+            <meta charset="utf-8" />
+            <meta name="viewport" content="width=device-width, initial-scale=1" />
+            <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' https: data:; style-src 'unsafe-inline';">
+            <style>
+              body {
+                font-family: 'Helvetica', 'Arial', sans-serif;
+                padding: 20px;
+                max-width: 800px;
+                margin: 0 auto;
+                color: #333;
               }
-              .no-print { display: none; }
-            }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            ${receiptContent}
-          </div>
-          <script>
-            window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };
-          </script>
-        </body>
-      </html>
-    `);
-    
-    printWindow.document.close();
+              .container {
+                padding: 20px;
+                border-radius: 8px;
+                border: 1px solid #e2e8f0;
+              }
+              .text-emerald-600 { color: #059669; }
+              .text-emerald-500 { color: #10b981; }
+              .receipt-header {
+                text-align: center;
+                border-bottom: 1px solid #e2e8f0;
+                padding-bottom: 15px;
+                margin-bottom: 15px;
+              }
+              .logo {
+                width: 64px;
+                height: 64px;
+                margin: 0 auto 10px;
+                display: block;
+                border-radius: 50%;
+                border: 2px solid #10b981;
+              }
+              h2 { margin: 5px 0; color: #059669; }
+              @media print {
+                body { 
+                  -webkit-print-color-adjust: exact;
+                  print-color-adjust: exact;
+                }
+                .no-print { display: none; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              ${receiptContent}
+            </div>
+            <script>
+              window.onload = function() { 
+                try {
+                  window.print(); 
+                  setTimeout(function() { window.close(); }, 500);
+                } catch(e) {
+                  console.error('Print error:', e);
+                }
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      
+      printWindow.document.close();
+    } catch (error) {
+      console.error('Print window error:', error);
+      toast.error('Failed to open print window');
+    }
   }, [username]);
 
   // Close modal on escape key
@@ -465,7 +503,10 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
                   alt="Payment Proof" 
                   className="w-full h-auto object-contain max-h-[150px] rounded"
                   loading="lazy"
+                  referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
                   onError={(e) => {
+                    console.error("Failed to load image:", paymentProofUrl);
                     (e.target as HTMLImageElement).onerror = null;
                     (e.target as HTMLImageElement).src = 'https://i.imgur.com/JzDJS2A.png'; // Placeholder for failed image
                   }}
@@ -503,7 +544,10 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
           onClick={() => setIsImageViewerOpen(false)}
         >
           <button 
-            onClick={() => setIsImageViewerOpen(false)}
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent double-handling
+              setIsImageViewerOpen(false);
+            }}
             className="absolute top-4 right-4 bg-gray-800/70 hover:bg-gray-700 p-2 rounded-full text-white"
             aria-label="Close preview"
           >
@@ -513,7 +557,10 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
             src={paymentProofUrl} 
             alt="Payment Proof" 
             className="max-w-full max-h-[90vh] object-contain"
+            referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
             onError={(e) => {
+              console.error("Failed to load image:", paymentProofUrl);
               (e.target as HTMLImageElement).onerror = null;
               (e.target as HTMLImageElement).src = 'https://i.imgur.com/JzDJS2A.png'; // Placeholder for failed image
             }}

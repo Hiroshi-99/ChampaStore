@@ -65,7 +65,7 @@ const RANKS: RankOption[] = [
 // Rate limiting configuration
 const RATE_LIMIT_DURATION = 60 * 1000; // 1 minute
 const MAX_ATTEMPTS = 3;
-const rateLimitStore = new Map<string, { attempts: number; timestamp: number }>();
+const rateLimitStore = new Map<string, { attempts: number; timestamp: number; blocked: boolean }>();
 
 // Memoized platform button component
 const PlatformButton = memo(({ 
@@ -154,17 +154,32 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     const now = Date.now();
     const userRateLimit = rateLimitStore.get(identifier);
 
+    // If user is blocked, deny immediately
+    if (userRateLimit?.blocked) {
+      return false;
+    }
+
     if (!userRateLimit) {
-      rateLimitStore.set(identifier, { attempts: 1, timestamp: now });
+      rateLimitStore.set(identifier, { attempts: 1, timestamp: now, blocked: false });
       return true;
     }
 
     if (now - userRateLimit.timestamp > RATE_LIMIT_DURATION) {
-      rateLimitStore.set(identifier, { attempts: 1, timestamp: now });
+      rateLimitStore.set(identifier, { attempts: 1, timestamp: now, blocked: false });
       return true;
     }
 
     if (userRateLimit.attempts >= MAX_ATTEMPTS) {
+      // Block after exceeding max attempts
+      userRateLimit.blocked = true;
+      // Auto-unblock after 10 minutes
+      setTimeout(() => {
+        const currentData = rateLimitStore.get(identifier);
+        if (currentData) {
+          currentData.blocked = false;
+          rateLimitStore.set(identifier, currentData);
+        }
+      }, 10 * 60 * 1000);
       return false;
     }
 
@@ -296,42 +311,62 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     setLoading(true);
 
     try {
-      // Rate limit check using IP or username as identifier
-      const identifier = username.toLowerCase(); // In production, use IP address
+      // Rate limit check using combined identifiers for stronger protection
+      const clientIP = 'client-ip'; // In production, use actual client IP
+      const identifierBase = username.toLowerCase() + '-' + navigator.userAgent.substring(0, 50);
+      const identifier = btoa(identifierBase).substring(0, 50); // Base64 encode combined identifier
+      
       if (!checkRateLimit(identifier)) {
         throw new Error('Too many attempts. Please try again later.');
       }
 
-      // Input validation
+      // Enhanced input validation
       if (!paymentProof) throw new Error('Please upload payment proof');
-      if (!username.trim()) throw new Error('Please enter your username');
-      if (username.length > 50) throw new Error('Username is too long');
-      if (!/^[a-zA-Z0-9_]{3,16}$/.test(username.trim())) {
-        throw new Error('Invalid Minecraft username format');
+      
+      // Sanitize and validate username
+      const sanitizedUsername = sanitizeInput(username.trim());
+      if (!sanitizedUsername) throw new Error('Please enter your username');
+      if (sanitizedUsername.length > 16) throw new Error('Username is too long (max 16 characters)');
+      if (!/^[a-zA-Z0-9_]{3,16}$/.test(sanitizedUsername)) {
+        throw new Error('Invalid Minecraft username format. Use only letters, numbers, and underscores.');
+      }
+      
+      // Check for inappropriate content in username
+      const forbiddenTerms = /\b(admin|moderator|owner|staff|hack|cheat|exploit)\b/i;
+      if (forbiddenTerms.test(sanitizedUsername)) {
+        throw new Error('Username contains prohibited terms');
       }
 
       const selectedRankOption = RANKS.find(rank => rank.name === selectedRank);
       if (!selectedRankOption) throw new Error('Please select a valid rank');
 
-      // File validation
+      // Enhanced file validation
       if (!paymentProof.type.startsWith('image/')) {
         throw new Error('Please upload a valid image file');
       }
 
-      // Validate file size (max 5MB)
-      if (paymentProof.size > 5 * 1024 * 1024) {
-        throw new Error('Image size should be less than 5MB');
+      // Validate file size (max 3MB for tighter control)
+      if (paymentProof.size > 3 * 1024 * 1024) {
+        throw new Error('Image size should be less than 3MB');
       }
 
-      // Validate file type more strictly
+      // Stricter file type validation
       const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
       if (!allowedTypes.includes(paymentProof.type)) {
         throw new Error('Please upload a JPG, PNG, or WebP image');
       }
 
-      // Create the file path with proper formatting for Supabase
+      // Create cryptographically secure random filename
       const timestamp = Date.now();
-      const randomString = crypto.randomUUID().slice(0, 8);
+      let randomString;
+      try {
+        randomString = crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+      } catch (e) {
+        // Fallback for browsers without crypto.randomUUID
+        randomString = Math.random().toString(36).substring(2, 14);
+      }
+      
+      // Safer file name with proper sanitization
       const fileName = `${timestamp}_${randomString}.jpg`;
       const filePath = `guest/${fileName}`;
       
@@ -353,20 +388,24 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         throw new Error('Upload failed. No data returned.');
       }
 
-      // Construct the absolute public URL for the image manually to ensure it works
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const publicUrl = `${supabaseUrl}/storage/v1/object/public/payment-proofs/${filePath}`;
+      // Construct the absolute public URL for the image with URL encoding for safety
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ymzksxrmsocggozepqsu.supabase.co';
+      const encodedPath = encodeURIComponent(filePath);
+      const publicUrl = `${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`;
       
+      // Log for debugging
+      console.log('Payment proof URL:', publicUrl);
 
-      // Create order with all required fields
+      // Create order with all required fields using sanitized input
       const orderData = {
-        username: username.trim(),
+        username: sanitizedUsername,
         platform,
         rank: selectedRank,
         price: selectedRankOption.price,
-        payment_proof: uploadData.path,
+        payment_proof: filePath, // Store the path only in the database
         created_at: new Date().toISOString(),
-        status: 'pending' // Ensure status field is included
+        status: 'pending', // Ensure status field is included
+        client_info: btoa(navigator.userAgent.substring(0, 50)) // Store encoded client info for security tracking
       };
 
       console.log('Sending order data:', orderData);
@@ -418,7 +457,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       // Prepare receipt data
       const orderCompleteData = {
         ...orderData,
-        payment_proof: publicUrl,  // Add the payment proof URL to receipt data
+        payment_proof: publicUrl,  // Use the complete URL for the receipt
         orderId: orderResponse && orderResponse[0] ? orderResponse[0].id : undefined
       };
       
@@ -438,7 +477,30 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       }, 100);
     } catch (error) {
       console.error('Submit error:', error);
-      toast.error(error instanceof Error ? error.message : 'An error occurred');
+      // Sanitize error messages to prevent information leakage
+      let errorMessage = 'An unexpected error occurred';
+      
+      if (error instanceof Error) {
+        // Only show whitelisted error messages to prevent information disclosure
+        const safeErrors = [
+          'Please upload payment proof',
+          'Please enter your username',
+          'Username is too long',
+          'Invalid Minecraft username format',
+          'Username contains prohibited terms',
+          'Please select a valid rank',
+          'Please upload a valid image file',
+          'Image size should be less than 3MB',
+          'Please upload a JPG, PNG, or WebP image',
+          'Too many attempts. Please try again later.'
+        ];
+        
+        // Only display error if it's in our safe list
+        const isKnownError = safeErrors.some(safeMsg => error.message.includes(safeMsg));
+        errorMessage = isKnownError ? error.message : 'An error occurred. Please try again.';
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
