@@ -2,7 +2,7 @@ import React, { useRef, useCallback, memo, useState, useEffect, useMemo } from '
 import { X, Check, User, CreditCard, ImageIcon, ZoomIn, Eye, Shield, Printer } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import toast from 'react-hot-toast';
-import { Dialog, DialogContent } from "../ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { sanitizeInput } from '../utils/sanitize';
 
@@ -175,13 +175,27 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
           console.error('Invalid URL protocol:', url.protocol);
           return ''; // Return empty string to prevent loading malicious URLs
         }
-        return payment_proof;
+        
+        // Handle CSP restrictions by proxying through our server or converting to data URL
+        // Option 1: Proxy through Netlify function
+        return `/.netlify/functions/image-proxy?url=${encodeURIComponent(payment_proof)}`;
+        
+        // Option 2: Or convert to Imgur URL if it's from Supabase
+        // This is a fallback approach - replace with your actual Imgur image
+        // if (payment_proof.includes('supabase.co')) {
+        //   return 'https://i.imgur.com/JzDJS2A.png'; // Default fallback image
+        // }
+        
+        // return payment_proof;
       }
       
       // Otherwise, construct the URL using the Supabase pattern with URL encoding
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://ymzksxrmsocggozepqsu.supabase.co';
       const encodedPath = encodeURIComponent(payment_proof);
-      return `${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`;
+      
+      // Use the proxy for Supabase URLs as well
+      return `/.netlify/functions/image-proxy?url=${encodeURIComponent(`${supabaseUrl}/storage/v1/object/public/payment-proofs/${encodedPath}`)}`;
+      
     } catch (error) {
       console.error('Error constructing payment proof URL:', error);
       return ''; // Return empty string to prevent loading invalid URLs
@@ -405,7 +419,18 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
 
   return (
     <Dialog open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
-      <DialogContent className={`bg-gray-800/95 p-4 sm:p-6 md:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto border-gray-700 transform transition-all duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}>
+      <DialogContent 
+        className={`bg-gray-800/95 p-4 sm:p-6 md:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto border-gray-700 transform transition-all duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}
+        aria-describedby="receipt-description"
+      >
+        <DialogTitle className="sr-only" id="receipt-title">
+          Purchase Receipt
+        </DialogTitle>
+        
+        <p id="receipt-description" className="sr-only">
+          Your purchase receipt for {rank} rank on Champa Store
+        </p>
+      
         <button
           onClick={onClose}
           className="absolute right-3 top-3 sm:right-4 sm:top-4 text-gray-400 hover:text-white transition-colors"
