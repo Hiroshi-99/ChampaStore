@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Save, Image, DollarSign, Percent, Settings, LogOut } from 'lucide-react';
+import { Save, Image, DollarSign, Percent, Settings, LogOut, ShoppingCart, FileText } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -151,6 +151,16 @@ const AdminDashboard: React.FC = () => {
           </button>
           
           <button
+            onClick={() => setActiveTab('orders')}
+            className={`w-full text-left px-4 py-3 flex items-center gap-3 ${
+              activeTab === 'orders' ? 'bg-gray-700 text-emerald-400' : 'text-gray-300 hover:bg-gray-700/50'
+            }`}
+          >
+            <ShoppingCart size={18} />
+            <span>Orders</span>
+          </button>
+          
+          <button
             onClick={() => setActiveTab('settings')}
             className={`w-full text-left px-4 py-3 flex items-center gap-3 ${
               activeTab === 'settings' ? 'bg-gray-700 text-emerald-400' : 'text-gray-300 hover:bg-gray-700/50'
@@ -177,6 +187,7 @@ const AdminDashboard: React.FC = () => {
         {activeTab === 'images' && <ImageManager />}
         {activeTab === 'prices' && <PriceManager />}
         {activeTab === 'discounts' && <DiscountManager />}
+        {activeTab === 'orders' && <OrdersManager />}
         {activeTab === 'settings' && <SettingsManager />}
       </div>
     </div>
@@ -187,19 +198,95 @@ const AdminDashboard: React.FC = () => {
 const ImageManager: React.FC = () => {
   const [bannerImage, setBannerImage] = useState('/images/banner.gif');
   const [logoImage, setLogoImage] = useState('https://i.imgur.com/ArKEQz1.png');
+  const [qrCodeImage, setQrCodeImage] = useState('/images/qr/qrcode.jpg');
+  const [receiptImage, setReceiptImage] = useState('/images/receipt-bg.jpg');
+  const [receiptLogoImage, setReceiptLogoImage] = useState('https://i.imgur.com/ArKEQz1.png');
+  const [rankImages, setRankImages] = useState<{[key: string]: string}>({
+    'VIP': 'https://i.imgur.com/NX3RB4i.png',
+    'MVP': 'https://i.imgur.com/gmlFpV2.png',
+    'MVP+': 'https://i.imgur.com/C4VE5b0.png',
+    'LEGEND': 'https://i.imgur.com/fiqqcOY.png',
+    'DEVIL': 'https://i.imgur.com/z0zBiyZ.png',
+    'INFINITY': 'https://i.imgur.com/SW6dtYW.png',
+    'CHAMPA': 'https://i.imgur.com/5xEinAj.png'
+  });
+  const [selectedRank, setSelectedRank] = useState('VIP');
   const [isSaving, setIsSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    const fetchImages = async () => {
+      try {
+        // Fetch site configuration
+        const { data: configData, error: configError } = await supabase
+          .from('site_config')
+          .select('*')
+          .in('key', ['banner_image', 'logo_image', 'qr_code_image', 'receipt_image', 'receipt_logo_image']);
+          
+        if (configError) throw configError;
+        
+        if (configData) {
+          const imagesObj = configData.reduce((acc: any, item: any) => {
+            acc[item.key] = item.value;
+            return acc;
+          }, {});
+          
+          setBannerImage(imagesObj.banner_image || '/images/banner.gif');
+          setLogoImage(imagesObj.logo_image || 'https://i.imgur.com/ArKEQz1.png');
+          setQrCodeImage(imagesObj.qr_code_image || '/images/qr/qrcode.jpg');
+          setReceiptImage(imagesObj.receipt_image || '/images/receipt-bg.jpg');
+          setReceiptLogoImage(imagesObj.receipt_logo_image || 'https://i.imgur.com/ArKEQz1.png');
+        }
+        
+        // Fetch rank images from products table
+        const { data: rankData, error: rankError } = await supabase
+          .from('products')
+          .select('name, image_url');
+          
+        if (rankError) throw rankError;
+        
+        if (rankData && rankData.length > 0) {
+          const rankImagesObj = rankData.reduce((acc: {[key: string]: string}, item: any) => {
+            if (item.name && item.image_url) {
+              acc[item.name] = item.image_url;
+            }
+            return acc;
+          }, {});
+          
+          setRankImages(rankImagesObj);
+        }
+      } catch (error) {
+        console.error('Error fetching images:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchImages();
+  }, []);
   
   const handleSaveImages = async () => {
     setIsSaving(true);
     
     try {
-      // Save to Supabase table for site configuration
+      // Save main images to site_config
       await supabase
         .from('site_config')
         .upsert([
           { key: 'banner_image', value: bannerImage },
-          { key: 'logo_image', value: logoImage }
+          { key: 'logo_image', value: logoImage },
+          { key: 'qr_code_image', value: qrCodeImage },
+          { key: 'receipt_image', value: receiptImage },
+          { key: 'receipt_logo_image', value: receiptLogoImage }
         ]);
+      
+      // Save rank images to products table
+      for (const [rankName, imageUrl] of Object.entries(rankImages)) {
+        await supabase
+          .from('products')
+          .update({ image_url: imageUrl })
+          .eq('name', rankName);
+      }
       
       alert('Images saved successfully!');
     } catch (error) {
@@ -210,50 +297,185 @@ const ImageManager: React.FC = () => {
     }
   };
   
+  const handleRankImageChange = (value: string) => {
+    setRankImages({
+      ...rankImages,
+      [selectedRank]: value
+    });
+  };
+  
+  if (loading) {
+    return <div className="text-white">Loading images...</div>;
+  }
+  
   return (
     <div>
       <h2 className="text-2xl font-bold text-white mb-6">Image Management</h2>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="bg-gray-800 p-6 rounded-xl">
-          <h3 className="text-xl font-semibold text-white mb-4">Banner Image</h3>
-          
-          <div className="mb-4 bg-gray-900 p-2 rounded-lg">
-            <img 
-              src={bannerImage} 
-              alt="Banner Preview" 
-              className="w-full h-40 object-cover rounded-lg"
-            />
+      <div className="grid grid-cols-1 gap-8">
+        {/* Main Images Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="bg-gray-800 p-6 rounded-xl">
+            <h3 className="text-xl font-semibold text-white mb-4">Banner Image</h3>
+            
+            <div className="mb-4 bg-gray-900 p-2 rounded-lg">
+              <img 
+                src={bannerImage} 
+                alt="Banner Preview" 
+                className="w-full h-40 object-cover rounded-lg"
+              />
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-gray-300 mb-2">Image URL</label>
+              <input
+                type="text"
+                value={bannerImage}
+                onChange={(e) => setBannerImage(e.target.value)}
+                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
           </div>
           
-          <div className="mb-4">
-            <label className="block text-gray-300 mb-2">Image URL</label>
-            <input
-              type="text"
-              value={bannerImage}
-              onChange={(e) => setBannerImage(e.target.value)}
-              className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-            />
+          <div className="bg-gray-800 p-6 rounded-xl">
+            <h3 className="text-xl font-semibold text-white mb-4">Logo Image</h3>
+            
+            <div className="mb-4 bg-gray-900 p-2 rounded-lg flex items-center justify-center">
+              <img 
+                src={logoImage} 
+                alt="Logo Preview" 
+                className="w-20 h-20 object-cover rounded-full border-2 border-emerald-500"
+              />
+            </div>
+            
+            <div className="mb-4">
+              <label className="block text-gray-300 mb-2">Image URL</label>
+              <input
+                type="text"
+                value={logoImage}
+                onChange={(e) => setLogoImage(e.target.value)}
+                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+              />
+            </div>
           </div>
         </div>
         
+        {/* Payment QR Code Section */}
         <div className="bg-gray-800 p-6 rounded-xl">
-          <h3 className="text-xl font-semibold text-white mb-4">Logo Image</h3>
+          <h3 className="text-xl font-semibold text-white mb-4">Payment QR Code</h3>
           
-          <div className="mb-4 bg-gray-900 p-2 rounded-lg flex items-center justify-center">
+          <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center">
             <img 
-              src={logoImage} 
-              alt="Logo Preview" 
-              className="w-20 h-20 object-cover rounded-full border-2 border-emerald-500"
+              src={qrCodeImage} 
+              alt="Payment QR Code Preview" 
+              className="w-48 h-48 object-contain"
             />
           </div>
           
           <div className="mb-4">
-            <label className="block text-gray-300 mb-2">Image URL</label>
+            <label className="block text-gray-300 mb-2">QR Code Image URL</label>
             <input
               type="text"
-              value={logoImage}
-              onChange={(e) => setLogoImage(e.target.value)}
+              value={qrCodeImage}
+              onChange={(e) => setQrCodeImage(e.target.value)}
+              className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+            />
+            <p className="text-xs text-gray-400 mt-1">This QR code will be displayed in the order modal for payment</p>
+          </div>
+        </div>
+        
+        {/* Receipt Images Section */}
+        <div className="bg-gray-800 p-6 rounded-xl">
+          <h3 className="text-xl font-semibold text-white mb-4">Receipt Images</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <label className="block text-gray-300 mb-2">Receipt Background</label>
+              <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center">
+                <img 
+                  src={receiptImage} 
+                  alt="Receipt Background Preview" 
+                  className="w-full h-40 object-cover rounded-lg"
+                />
+              </div>
+              
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={receiptImage}
+                  onChange={(e) => setReceiptImage(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">Background image for the receipt</p>
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-gray-300 mb-2">Receipt Logo</label>
+              <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center">
+                <img 
+                  src={receiptLogoImage} 
+                  alt="Receipt Logo Preview" 
+                  className="w-32 h-32 object-contain"
+                />
+              </div>
+              
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={receiptLogoImage}
+                  onChange={(e) => setReceiptLogoImage(e.target.value)}
+                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+                />
+                <p className="text-xs text-gray-400 mt-1">Logo displayed on the receipt</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Rank Preview Images Section */}
+        <div className="bg-gray-800 p-6 rounded-xl">
+          <h3 className="text-xl font-semibold text-white mb-4">Rank Preview Images</h3>
+          
+          <div className="mb-4">
+            <label className="block text-gray-300 mb-2">Select Rank</label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-4">
+              {Object.keys(rankImages).map((rankName) => (
+                <button
+                  key={rankName}
+                  onClick={() => setSelectedRank(rankName)}
+                  className={`py-2 px-3 rounded-lg border transition-all ${
+                    selectedRank === rankName
+                      ? `bg-gradient-to-r ${rankName === 'VIP' ? 'from-emerald-500 to-emerald-600' : 
+                         rankName === 'MVP' ? 'from-blue-500 to-blue-600' :
+                         rankName === 'MVP+' ? 'from-purple-500 to-purple-600' :
+                         rankName === 'LEGEND' ? 'from-yellow-500 to-yellow-600' :
+                         rankName === 'DEVIL' ? 'from-red-500 to-red-600' :
+                         rankName === 'INFINITY' ? 'from-pink-500 to-pink-600' :
+                         'from-orange-500 to-orange-600'} text-white border-transparent`
+                      : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
+                  }`}
+                >
+                  {rankName}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center">
+            <img 
+              src={rankImages[selectedRank] || ''} 
+              alt={`${selectedRank} Preview`} 
+              className="h-48 object-contain"
+            />
+          </div>
+          
+          <div className="mb-4">
+            <label className="block text-gray-300 mb-2">{selectedRank} Image URL</label>
+            <input
+              type="text"
+              value={rankImages[selectedRank] || ''}
+              onChange={(e) => handleRankImageChange(e.target.value)}
               className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
             />
           </div>
@@ -274,7 +496,7 @@ const ImageManager: React.FC = () => {
           ) : (
             <>
               <Save size={18} />
-              <span>Save Changes</span>
+              <span>Save All Images</span>
             </>
           )}
         </button>
@@ -356,16 +578,30 @@ const PriceManager: React.FC = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4 text-gray-300">Product Name</th>
+                  <th className="text-left py-3 px-4 text-gray-300">Rank</th>
                   <th className="text-left py-3 px-4 text-gray-300">Description</th>
+                  <th className="text-center py-3 px-4 text-gray-300">Preview</th>
                   <th className="text-left py-3 px-4 text-gray-300">Price ($)</th>
                 </tr>
               </thead>
               <tbody>
                 {products.map((product) => (
                   <tr key={product.id} className="border-b border-gray-700">
-                    <td className="py-3 px-4 text-white">{product.name}</td>
+                    <td className="py-3 px-4">
+                      <div className={`inline-block px-3 py-1 rounded text-white font-medium bg-gradient-to-r ${product.color}`}>
+                        {product.name}
+                      </div>
+                    </td>
                     <td className="py-3 px-4 text-gray-300">{product.description}</td>
+                    <td className="py-3 px-4 text-center">
+                      {product.image_url && (
+                        <img 
+                          src={product.image_url} 
+                          alt={product.name} 
+                          className="h-12 w-auto inline-block"
+                        />
+                      )}
+                    </td>
                     <td className="py-3 px-4">
                       <input
                         type="number"
@@ -598,6 +834,149 @@ const DiscountManager: React.FC = () => {
           )}
         </div>
       </div>
+    </div>
+  );
+};
+
+// Orders Manager Component
+const OrdersManager: React.FC = () => {
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  useEffect(() => {
+    const fetchOrders = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .order('created_at', { ascending: false });
+          
+        if (error) throw error;
+        
+        setOrders(data || []);
+      } catch (error) {
+        console.error('Error fetching orders:', error);
+        alert('Failed to load orders');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchOrders();
+  }, []);
+  
+  const handleStatusChange = async (id: number, status: string) => {
+    setIsProcessing(true);
+    
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status })
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      setOrders(orders.map(order => 
+        order.id === id ? { ...order, status } : order
+      ));
+      
+      alert(`Order status updated to: ${status}`);
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      alert('Failed to update order status');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+  
+  const getStatusBadgeClass = (status: string) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-500/20 text-yellow-300';
+      case 'completed':
+        return 'bg-green-500/20 text-green-300';
+      case 'cancelled':
+        return 'bg-red-500/20 text-red-300';
+      default:
+        return 'bg-gray-500/20 text-gray-300';
+    }
+  };
+  
+  if (loading) {
+    return <div className="text-white">Loading orders...</div>;
+  }
+  
+  return (
+    <div>
+      <h2 className="text-2xl font-bold text-white mb-6">Order Management</h2>
+      
+      {orders.length === 0 ? (
+        <div className="bg-gray-800 p-6 rounded-xl">
+          <p className="text-gray-300">No orders found.</p>
+        </div>
+      ) : (
+        <div className="bg-gray-800 p-6 rounded-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="text-left py-3 px-4 text-gray-300">Order ID</th>
+                  <th className="text-left py-3 px-4 text-gray-300">Username</th>
+                  <th className="text-left py-3 px-4 text-gray-300">Platform</th>
+                  <th className="text-left py-3 px-4 text-gray-300">Rank</th>
+                  <th className="text-left py-3 px-4 text-gray-300">Price</th>
+                  <th className="text-left py-3 px-4 text-gray-300">Date</th>
+                  <th className="text-left py-3 px-4 text-gray-300">Status</th>
+                  <th className="text-left py-3 px-4 text-gray-300">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orders.map((order) => (
+                  <tr key={order.id} className="border-b border-gray-700">
+                    <td className="py-3 px-4 text-gray-300">#{order.id}</td>
+                    <td className="py-3 px-4 text-white">{order.username}</td>
+                    <td className="py-3 px-4 text-gray-300 capitalize">{order.platform}</td>
+                    <td className="py-3 px-4 text-gray-300">{order.rank}</td>
+                    <td className="py-3 px-4 text-gray-300">${parseFloat(order.price).toFixed(2)}</td>
+                    <td className="py-3 px-4 text-gray-300">{new Date(order.created_at).toLocaleDateString()}</td>
+                    <td className="py-3 px-4">
+                      <span className={`px-2 py-1 rounded text-xs ${getStatusBadgeClass(order.status)}`}>
+                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleStatusChange(order.id, 'completed')}
+                          disabled={isProcessing || order.status === 'completed'}
+                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs disabled:opacity-50"
+                        >
+                          Complete
+                        </button>
+                        <button 
+                          onClick={() => handleStatusChange(order.id, 'cancelled')}
+                          disabled={isProcessing || order.status === 'cancelled'}
+                          className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          onClick={() => window.open(order.payment_proof, '_blank')}
+                          disabled={!order.payment_proof}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs disabled:opacity-50"
+                        >
+                          <FileText size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -357,20 +357,34 @@ export function ReceiptModal({
         {/* Receipt Content - Printable Area */}
         <div 
           ref={receiptRef} 
-          className={`bg-white text-gray-900 rounded-xl p-6 mb-4 print:shadow-none transition-all
+          className={`bg-white text-gray-900 rounded-xl p-6 mb-4 print:shadow-none transition-all relative overflow-hidden
             ${theme.animations ? `duration-${APP_CONFIG.animations.duration.normal} ${animateComplete ? 'shadow-xl' : 'shadow-sm'}` : 'shadow-xl'}`}
           aria-labelledby="receipt-title"
         >
+          {/* Custom Receipt Background */}
+          <div className="absolute inset-0 z-0 opacity-10">
+            <img 
+              src={APP_CONFIG.receiptBackgroundUrl || "https://i.imgur.com/JNJ6mDD.png"} 
+              alt="" 
+              className="w-full h-full object-cover" 
+              aria-hidden="true"
+            />
+          </div>
+          
+          {/* Semi-transparent overlay to ensure readability */}
+          <div className="absolute inset-0 z-0 bg-white/90"></div>
+          
           {/* Receipt Header with Logo */}
-          <div className="text-center mb-6 border-b border-gray-200 pb-6 receipt-header relative">
+          <div className="text-center mb-6 border-b border-gray-200 pb-6 receipt-header relative z-10">
             <div className="absolute top-0 right-0 text-xs text-gray-500 bg-gray-100 py-1 px-2 rounded-md">
               #{receiptNumber}
             </div>
-            <div className={`w-20 h-20 rounded-full ${colors.headerBg} p-0.5 mx-auto mb-3 shadow-lg`}>
+            <div className={`w-20 h-20 rounded-full mx-auto mb-3 shadow-lg overflow-hidden p-0.5 bg-white relative`}>
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-400 to-emerald-600 opacity-50"></div>
               <img 
-                src={APP_CONFIG.logoUrl} 
+                src={APP_CONFIG.receiptLogoUrl || APP_CONFIG.logoUrl} 
                 alt="Store Logo" 
-                className="w-full h-full rounded-full border-2 border-white"
+                className="w-full h-full rounded-full border-2 border-white relative z-10"
                 width={64}
                 height={64}
                 loading="eager"
@@ -432,7 +446,7 @@ export function ReceiptModal({
           </div>
           
           {/* Payment Confirmation */}
-          <div className="text-center my-6 bg-gradient-to-r from-gray-50 to-white py-4 px-3 rounded-lg border border-gray-100">
+          <div className="text-center my-6 bg-gradient-to-r from-gray-50/80 to-white/80 py-4 px-3 rounded-lg border border-gray-100">
             <div className={`inline-flex items-center justify-center bg-${APP_CONFIG.primaryColor}-100 text-${APP_CONFIG.primaryColor}-700 py-1.5 px-4 rounded-full mb-3 shadow-sm`}>
               <Check size={16} className="mr-1.5" />
               <span className="text-sm font-medium">Payment Confirmed</span>

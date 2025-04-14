@@ -2,6 +2,8 @@
 export const APP_CONFIG = {
   storeName: 'Champa Store',
   logoUrl: 'https://i.imgur.com/ArKEQz1.png',
+  receiptBackgroundUrl: 'https://i.imgur.com/JNJ6mDD.png', // Subtle pattern background for receipts
+  receiptLogoUrl: 'https://i.imgur.com/ArKEQz1.png', // Can be different from main logo if desired
   primaryColor: 'emerald',
   secondaryColor: 'gray',
   

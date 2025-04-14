@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS products (
   description TEXT,
   price DECIMAL(10, 2) NOT NULL,
   image_url TEXT,
+  color VARCHAR(100),
   active BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -38,16 +39,34 @@ INSERT INTO site_config (key, value) VALUES
   ('background_video_url', '/videos/background.mp4'),
   ('maintenance_mode', 'false');
 
--- Add sample products
-INSERT INTO products (name, description, price, image_url) VALUES
-  ('VIP Rank', 'Exclusive access to VIP room and special commands', 9.99, ''),
-  ('MVP Rank', 'All VIP features plus priority support', 19.99, ''),
-  ('Admin Rank', 'Full access to all features and commands', 29.99, '');
+-- Add ranks matching the OrderModal component
+INSERT INTO products (name, description, price, image_url, color) VALUES
+  ('VIP', 'Exclusive access to VIP room and special commands', 5.00, 'https://i.imgur.com/NX3RB4i.png', 'from-emerald-500 to-emerald-600'),
+  ('MVP', 'All VIP features plus priority support', 10.00, 'https://i.imgur.com/gmlFpV2.png', 'from-blue-500 to-blue-600'),
+  ('MVP+', 'Enhanced features with special perks', 15.00, 'https://i.imgur.com/C4VE5b0.png', 'from-purple-500 to-purple-600'),
+  ('LEGEND', 'Legendary status with exclusive abilities', 20.00, 'https://i.imgur.com/fiqqcOY.png', 'from-yellow-500 to-yellow-600'),
+  ('DEVIL', 'Powerful commands and unique perks', 25.00, 'https://i.imgur.com/z0zBiyZ.png', 'from-red-500 to-red-600'),
+  ('INFINITY', 'Unlimited access to all features', 30.00, 'https://i.imgur.com/SW6dtYW.png', 'from-pink-500 to-pink-600'),
+  ('CHAMPA', 'The ultimate rank with all privileges', 50.00, 'https://i.imgur.com/5xEinAj.png', 'from-orange-500 to-orange-600');
+
+-- Create the orders table if it doesn't exist
+CREATE TABLE IF NOT EXISTS orders (
+  id SERIAL PRIMARY KEY,
+  username VARCHAR(16) NOT NULL,
+  platform VARCHAR(10) NOT NULL,
+  rank VARCHAR(50) NOT NULL,
+  price DECIMAL(10, 2) NOT NULL,
+  payment_proof TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Add security policies
 ALTER TABLE site_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 ALTER TABLE discounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 
 -- Create policies that only allow authenticated users to modify data
 CREATE POLICY "Allow authenticated users to read site_config" ON site_config
@@ -66,6 +85,12 @@ CREATE POLICY "Allow authenticated users to read discounts" ON discounts
 FOR SELECT USING (true);
 
 CREATE POLICY "Allow authenticated users to modify discounts" ON discounts
+FOR ALL USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow authenticated users to read orders" ON orders
+FOR SELECT USING (true);
+
+CREATE POLICY "Allow authenticated users to modify orders" ON orders
 FOR ALL USING (auth.role() = 'authenticated');
 
 -- Create functions for updating timestamps
@@ -88,4 +113,8 @@ FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
 
 CREATE TRIGGER update_discounts_timestamp
 BEFORE UPDATE ON discounts
+FOR EACH ROW EXECUTE PROCEDURE update_modified_column();
+
+CREATE TRIGGER update_orders_timestamp
+BEFORE UPDATE ON orders
 FOR EACH ROW EXECUTE PROCEDURE update_modified_column(); 
