@@ -166,7 +166,7 @@ const Store: React.FC = () => {
           <div className="relative w-full overflow-hidden rounded-xl sm:rounded-2xl shadow-xl sm:shadow-2xl">
             <div className="w-full h-[200px] sm:h-[300px] md:h-[400px]">
               <img 
-                src="https://cdn.discordapp.com/attachments/1330444349179433083/1330444748661456897/1228-ezgif.com-video-to-gif-converter.gif?ex=67fcbeba&is=67fb6d3a&hm=5e6a8c5ce9ceeb8e6b9677343015ea1d60ceba262203540de2277aeaf97863e9&"
+                src="/images/banner.gif"
                 alt="Champa Banner"
                 className="w-full h-full object-cover"
                 loading="eager"
