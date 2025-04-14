@@ -1115,10 +1115,14 @@ const OrdersManager: React.FC = () => {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [orderActionLoading, setOrderActionLoading] = useState<number | null>(null);
   
   useEffect(() => {
     const fetchOrders = async () => {
       try {
+        setLoading(true);
         const { data, error } = await supabase
           .from('orders')
           .select('*')
@@ -1129,7 +1133,7 @@ const OrdersManager: React.FC = () => {
         setOrders(data || []);
       } catch (error) {
         console.error('Error fetching orders:', error);
-        alert('Failed to load orders');
+        toast.error('Failed to load orders');
       } finally {
         setLoading(false);
       }
@@ -1139,7 +1143,7 @@ const OrdersManager: React.FC = () => {
   }, []);
   
   const handleStatusChange = async (id: number, status: string) => {
-    setIsProcessing(true);
+    setOrderActionLoading(id);
     
     try {
       const { error } = await supabase
@@ -1153,12 +1157,12 @@ const OrdersManager: React.FC = () => {
         order.id === id ? { ...order, status } : order
       ));
       
-      alert(`Order status updated to: ${status}`);
+      toast.success(`Order #${id} status updated to: ${status}`);
     } catch (error) {
       console.error('Error updating order status:', error);
-      alert('Failed to update order status');
+      toast.error('Failed to update order status');
     } finally {
-      setIsProcessing(false);
+      setOrderActionLoading(null);
     }
   };
   
@@ -1174,18 +1178,49 @@ const OrdersManager: React.FC = () => {
         return 'bg-gray-500/20 text-gray-300';
     }
   };
+
+  const viewOrderDetails = (order: any) => {
+    setSelectedOrder(order);
+    setShowModal(true);
+  };
   
   if (loading) {
-    return <div className="text-white">Loading orders...</div>;
+    return (
+      <div className="bg-gray-800 p-8 rounded-xl flex flex-col items-center justify-center min-h-[300px]">
+        <div className="relative w-16 h-16 mb-4">
+          <div className="absolute inset-0 rounded-full border-2 border-emerald-500/30"></div>
+          <div className="absolute inset-0 rounded-full border-t-2 border-emerald-500 animate-spin"></div>
+          <div className="absolute inset-2 rounded-full bg-gray-800 flex items-center justify-center">
+            <ShoppingCart size={20} className="text-emerald-400" />
+          </div>
+        </div>
+        <p className="text-emerald-400 font-medium">Loading orders...</p>
+      </div>
+    );
   }
   
   return (
     <div>
-      <h2 className="text-2xl font-bold text-white mb-6">Order Management</h2>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold text-white">Order Management</h2>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Refresh
+        </button>
+      </div>
       
       {orders.length === 0 ? (
-        <div className="bg-gray-800 p-6 rounded-xl">
-          <p className="text-gray-300">No orders found.</p>
+        <div className="bg-gray-800 p-8 rounded-xl text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-700/50 mb-4">
+            <ShoppingCart size={24} className="text-gray-400" />
+          </div>
+          <p className="text-gray-300 text-lg mb-2">No orders found</p>
+          <p className="text-gray-500 text-sm max-w-md mx-auto">When customers place orders, they will appear here for you to manage.</p>
         </div>
       ) : (
         <div className="bg-gray-800 p-6 rounded-xl">
@@ -1205,7 +1240,7 @@ const OrdersManager: React.FC = () => {
               </thead>
               <tbody>
                 {orders.map((order) => (
-                  <tr key={order.id} className="border-b border-gray-700">
+                  <tr key={order.id} className="border-b border-gray-700 hover:bg-gray-700/30 transition-colors">
                     <td className="py-3 px-4 text-gray-300">#{order.id}</td>
                     <td className="py-3 px-4 text-white">{order.username}</td>
                     <td className="py-3 px-4 text-gray-300 capitalize">{order.platform}</td>
@@ -1220,32 +1255,149 @@ const OrdersManager: React.FC = () => {
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
                         <button 
-                          onClick={() => handleStatusChange(order.id, 'completed')}
-                          disabled={isProcessing || order.status === 'completed'}
-                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs disabled:opacity-50"
+                          onClick={() => viewOrderDetails(order)}
+                          className="bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded text-xs"
                         >
-                          Complete
+                          Details
+                        </button>
+                        <button 
+                          onClick={() => handleStatusChange(order.id, 'completed')}
+                          disabled={orderActionLoading === order.id || order.status === 'completed'}
+                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs disabled:opacity-50 flex items-center"
+                        >
+                          {orderActionLoading === order.id ? (
+                            <><span className="h-3 w-3 mr-1 rounded-full border-2 border-white border-t-transparent animate-spin"></span>Wait</>
+                          ) : (
+                            'Complete'
+                          )}
                         </button>
                         <button 
                           onClick={() => handleStatusChange(order.id, 'cancelled')}
-                          disabled={isProcessing || order.status === 'cancelled'}
+                          disabled={orderActionLoading === order.id || order.status === 'cancelled'}
                           className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs disabled:opacity-50"
                         >
                           Cancel
                         </button>
-                        <button 
-                          onClick={() => window.open(order.payment_proof, '_blank')}
-                          disabled={!order.payment_proof}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs disabled:opacity-50"
-                        >
-                          <FileText size={14} />
-                        </button>
+                        {order.payment_proof && (
+                          <button 
+                            onClick={() => window.open(order.payment_proof, '_blank')}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs flex items-center"
+                          >
+                            <FileText size={14} />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Order Details Modal */}
+      {showModal && selectedOrder && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-gray-800 rounded-xl max-w-2xl w-full relative border border-gray-700 shadow-xl animate-fadeIn">
+            <button 
+              onClick={() => setShowModal(false)}
+              className="absolute right-4 top-4 text-gray-400 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+            
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-700">
+                <h3 className="text-xl font-bold text-white">Order Details</h3>
+                <span className={`px-3 py-1 rounded-full text-xs ${getStatusBadgeClass(selectedOrder.status)}`}>
+                  {selectedOrder.status.charAt(0).toUpperCase() + selectedOrder.status.slice(1)}
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div>
+                  <div className="flex flex-col space-y-4">
+                    <div>
+                      <p className="text-gray-400 text-sm">Order ID</p>
+                      <p className="text-white font-medium">#{selectedOrder.id}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Date</p>
+                      <p className="text-white">{new Date(selectedOrder.created_at).toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Username</p>
+                      <p className="text-white font-medium">{selectedOrder.username}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="flex flex-col space-y-4">
+                    <div>
+                      <p className="text-gray-400 text-sm">Platform</p>
+                      <p className="text-white capitalize">{selectedOrder.platform}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Rank</p>
+                      <p className="text-white font-medium">{selectedOrder.rank}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Price</p>
+                      <p className="text-emerald-400 font-bold">${parseFloat(selectedOrder.price).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {selectedOrder.payment_proof && (
+                <div className="mb-6">
+                  <p className="text-gray-400 text-sm mb-2">Payment Proof</p>
+                  <div className="bg-gray-900 p-2 rounded-lg border border-gray-700">
+                    <img 
+                      src={selectedOrder.payment_proof} 
+                      alt="Payment Proof" 
+                      className="w-full h-auto max-h-64 object-contain rounded"
+                      onError={(e) => {
+                        e.currentTarget.src = 'https://via.placeholder.com/300x200?text=Image+Not+Available';
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex justify-between items-center pt-4 border-t border-gray-700">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded"
+                >
+                  Close
+                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      handleStatusChange(selectedOrder.id, 'completed');
+                      setShowModal(false);
+                    }}
+                    disabled={orderActionLoading === selectedOrder.id || selectedOrder.status === 'completed'}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded disabled:opacity-50"
+                  >
+                    Mark Completed
+                  </button>
+                  <button 
+                    onClick={() => {
+                      handleStatusChange(selectedOrder.id, 'cancelled');
+                      setShowModal(false);
+                    }}
+                    disabled={orderActionLoading === selectedOrder.id || selectedOrder.status === 'cancelled'}
+                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded disabled:opacity-50"
+                  >
+                    Cancel Order
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

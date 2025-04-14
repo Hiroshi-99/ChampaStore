@@ -107,6 +107,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const [showReceipt, setShowReceipt] = useState(false);
   const [receiptData, setReceiptData] = useState<any>(null);
   const [orderComplete, setOrderComplete] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   
   // Store ranks and QR code image in state
   const [ranks, setRanks] = useState<RankOption[]>(DEFAULT_RANKS);
@@ -117,6 +118,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const [initialLoading, setInitialLoading] = useState(true);
   const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null);
   const [uploadDisabled, setUploadDisabled] = useState(false);
+  const [uploadFallbackMode, setUploadFallbackMode] = useState(false);
 
   // Form steps for guided flow
   const [formStep, setFormStep] = useState<'info' | 'payment' | 'confirmation'>('info');
@@ -131,6 +133,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         // Check if storage is properly configured
         if (isOpen) {
           try {
+            setUploadError(null);
             const hasBuckets = await checkSupabaseBuckets();
             if (!hasBuckets) {
               // Try to create buckets as a last resort
@@ -139,16 +142,21 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
               if (!bucketsCreated) {
                 console.warn('Storage uploads likely to fail - no buckets available');
                 setUploadDisabled(true);
+                setUploadFallbackMode(true);
+                toast.error('Using fallback upload method. Your order will still work.', { duration: 5000 });
               } else {
                 console.log('Created storage buckets successfully!');
                 setUploadDisabled(false);
+                setUploadFallbackMode(false);
               }
             } else {
               setUploadDisabled(false);
+              setUploadFallbackMode(false);
             }
           } catch (err) {
             console.error('Error checking storage buckets:', err);
             setUploadDisabled(false); // Still allow uploads, we'll use the fallback
+            setUploadFallbackMode(true);
           }
         }
         
@@ -286,14 +294,18 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     const file = e.target.files?.[0];
     if (!file) return;
     
+    setUploadError(null);
+    
     // Validate file size
     if (file.size > 3 * 1024 * 1024) {
+      setUploadError('Image is too large (max 3MB)');
       toast.error('Image is too large (max 3MB)');
       return;
     }
     
     // Validate file type
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setUploadError('Please upload a JPG, PNG, or WebP image');
       toast.error('Please upload a JPG, PNG, or WebP image');
       return;
     }
@@ -308,6 +320,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       }
     };
     reader.onerror = () => {
+      setUploadError('Failed to preview image');
       toast.error('Failed to preview image');
       setPaymentProofPreview(null);
     };
@@ -444,6 +457,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     e.preventDefault();
     setLoading(true);
     setLoadingStage('uploading');
+    setUploadError(null);
 
     try {
       // Rate limit check using combined identifiers for stronger protection
@@ -497,221 +511,139 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       const fileExtension = paymentProof.name.split('.').pop();
       const fileName = `payment_proof_${sanitizedUsername}_${timestamp}_${randomString}.${fileExtension}`;
       const filePath = `payment_proofs/${fileName}`;
-
-      // Set loading state to uploading
+      
+      // Define a function for fallback upload if storage bucket fails
+      const uploadToImgurFallback = async () => {
+        // Fallback to trying base64 data
+        try {
+          // Convert file to base64 and use data URL directly
+          return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (typeof reader.result === 'string') {
+                // For real implementation, you would send this to your server endpoint 
+                // that handles uploads to a service like Imgur, Cloudinary, etc.
+                // For now we'll just use the data URL directly
+                resolve(reader.result);
+              } else {
+                reject(new Error('Failed to read file as base64'));
+              }
+            };
+            reader.onerror = () => reject(reader.error);
+            reader.readAsDataURL(paymentProof!);
+          });
+        } catch (fallbackError) {
+          console.error('Failed to upload using fallback method:', fallbackError);
+          throw new Error('Failed to upload image (fallback mode also failed)');
+        }
+      };
+      
+      // Upload payment proof image with improved error handling and fallback
+      let paymentProofUrl = '';
       setLoadingStage('uploading');
       
-      // Prepare data URL as fallback
-      let dataUrl = '';
       try {
-        const reader = new FileReader();
-        dataUrl = await new Promise((resolve, reject) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(paymentProof);
-        });
-      } catch (dataUrlError) {
-        console.error('Failed to create data URL fallback:', dataUrlError);
-      }
-      
-      // Try uploading to Supabase storage
-      let uploadError: any = null;
-      let fileData: any = null;
-      let bucketName: string | null = null;
-      
-      // Always try the primary bucket first
-      const primaryBucket = 'payment-proofs';
-      try {
-        const uploadResult = await supabase.storage
-          .from(primaryBucket)
-          .upload(filePath, paymentProof, {
-            cacheControl: '3600',
-            upsert: true // Use upsert: true to avoid conflicts
-          });
-          
-        if (!uploadResult.error) {
-          fileData = uploadResult.data;
-          bucketName = primaryBucket;
-          console.log('Successfully uploaded to primary bucket:', primaryBucket);
+        if (uploadFallbackMode) {
+          // Use fallback method directly
+          paymentProofUrl = await uploadToImgurFallback();
         } else {
-          uploadError = uploadResult.error;
-          console.warn(`Upload to primary bucket failed: ${uploadResult.error.message}`);
+          // Try bucket-by-bucket with better error handling
+          let uploadSuccess = false;
           
-          // If bucket doesn't exist, try to create it
-          if (uploadResult.error.message?.includes('bucket not found') || 
-              uploadResult.error.message?.includes('does not exist')) {
-            console.log('Primary bucket not found, attempting to create it');
-            await createStorageBucket(primaryBucket);
-            
-            // Try upload again
-            const retryResult = await supabase.storage
-              .from(primaryBucket)
-              .upload(filePath, paymentProof, {
-                cacheControl: '3600',
-                upsert: true
-              });
-              
-            if (!retryResult.error) {
-              fileData = retryResult.data;
-              bucketName = primaryBucket;
-              uploadError = null;
-              console.log('Upload to newly created bucket succeeded');
-            } else {
-              console.warn('Upload to newly created bucket still failed:', retryResult.error);
+          // Try multiple buckets in case some are not available
+          for (const bucket of ['payment-proofs', 'images', 'store-images', 'public', 'media', 'uploads']) {
+            try {
+              const { data: uploadData, error: uploadError } = await supabase.storage
+                .from(bucket)
+                .upload(filePath, paymentProof, {
+                  cacheControl: '3600',
+                  upsert: false
+                });
+                
+              if (!uploadError) {
+                // Get public URL
+                const { data: publicUrlData } = supabase.storage
+                  .from(bucket)
+                  .getPublicUrl(filePath);
+                
+                paymentProofUrl = publicUrlData.publicUrl;
+                uploadSuccess = true;
+                break;
+              }
+            } catch (err) {
+              // Continue trying the next bucket
+              console.warn(`Failed to upload to bucket ${bucket}:`, err);
             }
           }
-        }
-      } catch (err) {
-        console.error('Error during primary bucket upload:', err);
-        uploadError = err;
-      }
-      
-      // If primary bucket failed, try alternatives
-      if (!bucketName) {
-        const alternateBuckets = ['uploads', 'media', 'public', 'images', 'storage'];
-        for (const bucket of alternateBuckets) {
-          try {
-            console.log(`Trying alternate bucket: ${bucket}`);
-            const result = await supabase.storage
-              .from(bucket)
-              .upload(filePath, paymentProof, {
-                cacheControl: '3600',
-                upsert: true
-              });
-              
-            if (!result.error) {
-              fileData = result.data;
-              bucketName = bucket;
-              uploadError = null;
-              console.log(`Successfully uploaded to alternate bucket: ${bucket}`);
-              break;
-            }
-          } catch (err) {
-            console.warn(`Error with alternate bucket ${bucket}:`, err);
-          }
-        }
-      }
-      
-      let paymentProofUrl = '';
-      
-      // If we found a working bucket, get the public URL
-      if (bucketName) {
-        try {
-          const { data: urlData } = supabase.storage
-            .from(bucketName)
-            .getPublicUrl(filePath);
+          
+          // If all storage buckets fail, try the fallback method
+          if (!uploadSuccess) {
+            console.warn('All storage buckets failed, using fallback upload');
+            paymentProofUrl = await uploadToImgurFallback();
             
-          if (urlData?.publicUrl) {
-            paymentProofUrl = urlData.publicUrl;
-            console.log('Got public URL:', paymentProofUrl);
-          } else {
-            console.warn('Failed to get public URL, falling back to data URL');
-            paymentProofUrl = dataUrl;
+            // Mark that we're in fallback mode for future uploads
+            setUploadFallbackMode(true);
           }
-        } catch (urlError) {
-          console.error('Error getting public URL:', urlError);
-          paymentProofUrl = dataUrl;
         }
-      } else {
-        // Use data URL as fallback
-        console.log('No working bucket found, using data URL fallback');
-        paymentProofUrl = dataUrl;
+      } catch (uploadError) {
+        console.error('Failed to upload image:', uploadError);
+        throw new Error('Failed to upload image. Please try again or contact support.');
       }
       
-      // Set loading state to processing
+      if (!paymentProofUrl) {
+        throw new Error('Image upload failed. Please try again or contact support.');
+      }
+
       setLoadingStage('processing');
-
-      // Create order with all required fields using sanitized input
-      const orderData = {
-        username: sanitizedUsername,
-        platform,
-        rank: selectedRank,
-        price: selectedRankOption.price,
-        payment_proof: bucketName ? filePath : paymentProofUrl,
-        created_at: new Date().toISOString(),
-        status: 'pending'
-      };
-
-      console.log('Sending order data');
-
-      // First, check if the orders table exists and has the correct structure
-      const { error: checkError } = await supabase
+      
+      // Create order in database
+      const { data: orderData, error: orderError } = await supabase
         .from('orders')
-        .select('id')
-        .limit(1);
-
-      let hasRlsIssue = false;
+        .insert({
+          username: sanitizedUsername,
+          platform,
+          rank: selectedRank,
+          price: selectedRankOption.price,
+          status: 'pending',
+          payment_proof: paymentProofUrl
+        })
+        .select('*')
+        .single();
       
-      // Check for RLS or permission issues
-      if (checkError) {
-        console.error('Table check error:', checkError);
-        
-        if (checkError.message && (
-            checkError.message.includes('row-level security policy') ||
-            checkError.message.includes('permission denied') ||
-            checkError.message.includes('JWT') ||
-            checkError.message.includes('auth') ||
-            checkError.message.includes('policy')
-          )) {
-          console.warn('Detected RLS policy or permission issue - using anonymous submission mode');
-          hasRlsIssue = true;
-        }
-      }
-
-      // Set loading state to finalizing
-      setLoadingStage('finalizing');
-      
-      // Always try to insert into database first
-      let insertData: any[] | null = null;
-      let insertError: any = null;
-      
-      if (!hasRlsIssue) {
-        try {
-          const insertResult = await supabase
-            .from('orders')
-            .insert([orderData])
-            .select();
-            
-          insertData = insertResult.data;
-          insertError = insertResult.error;
-          
-          if (insertError) {
-            console.warn('Database insert failed:', insertError);
-            hasRlsIssue = true;
-          } else {
-            console.log('Database insert succeeded');
-          }
-        } catch (dbError) {
-          console.error('Error during database insert:', dbError);
-          hasRlsIssue = true;
-        }
-      }
+      if (orderError) throw orderError;
       
       // Send notification to Discord
+      setLoadingStage('finalizing');
       await sendToDiscord(orderData, paymentProofUrl);
       
-      // Update receipt data for the confirmation modal
+      // Show confirmation message and clear form
+      toast.success('Order submitted successfully!');
+      setUsername('');
+      setPlatform('java');
+      setPaymentProof(null);
+      setPaymentProofPreview(null);
+      
+      // Set receipt data
       setReceiptData({
         ...orderData,
-        payment_proof: paymentProofUrl,
-        orderId: insertData && insertData[0]?.id ? insertData[0].id : 'ORDER-' + timestamp
+        rankImage: selectedRankOption.image
       });
       
-      // Show success notification
-      if (hasRlsIssue) {
-        toast.success('Order submitted! Using alternative processing mode.');
-      } else {
-        toast.success('Order submitted successfully!');
-      }
-      
-      // Show receipt modal
+      // Show order completed state with receipt
       setOrderComplete(true);
       setShowReceipt(true);
-      
     } catch (error: any) {
-      // Handle errors
-      console.error('Order Error:', error);
-      toast.error(error.message || 'Failed to process your order');
+      console.error('Order submission error:', error);
+      
+      let errorMessage = 'Failed to submit your order. Please try again.';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
+      toast.error(errorMessage);
+      setUploadError(errorMessage);
     } finally {
       setLoading(false);
       setLoadingStage(null);
@@ -822,41 +754,6 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         Payment Proof (QR Code Screenshot)
       </label>
       
-      {/* 
-        STORAGE SETUP INFORMATION:
-        
-        If you're having issues with storage uploads, here's how to fix them:
-        
-        1. Go to Storage → Policies in your Supabase dashboard
-        2. For the payment-proofs bucket, add these policies:
-        
-           INSERT POLICY:
-           - Policy name: "Anyone can upload payment proofs"
-           - Allowed operation: INSERT
-           - Target roles: anon, authenticated
-           - Policy definition: (bucket_id = 'payment-proofs')
-           
-           SELECT POLICY:
-           - Policy name: "Payment proofs are publicly accessible" 
-           - Allowed operation: SELECT
-           - Target roles: anon, authenticated
-           - Policy definition: (bucket_id = 'payment-proofs')
-           
-           UPDATE POLICY:
-           - Policy name: "Anyone can update their own payment proofs"
-           - Allowed operation: UPDATE
-           - Target roles: anon, authenticated
-           - Policy definition: (bucket_id = 'payment-proofs')
-           
-           DELETE POLICY:
-           - Policy name: "Anyone can delete their own payment proofs"
-           - Allowed operation: DELETE
-           - Target roles: anon, authenticated
-           - Policy definition: (bucket_id = 'payment-proofs')
-           
-        3. Or run the migration file at: supabase/migrations/20250323000001_fix_storage_permissions.sql
-      */}
-      
       <div className="relative">
         <input
           type="file"
@@ -868,9 +765,10 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         />
         <label
           htmlFor="payment-proof"
-          className="w-full bg-gray-700/50 border border-gray-600/80 rounded-lg py-3 px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300 text-sm sm:text-base group"
+          className={`w-full border rounded-lg py-3 px-4 flex items-center justify-center gap-2 cursor-pointer transition duration-300 text-sm sm:text-base group
+            ${uploadError ? 'bg-red-500/10 border-red-500/30 text-red-300 hover:bg-red-500/20' : 'bg-gray-700/50 border-gray-600/80 text-white hover:bg-gray-600/50'}`}
         >
-          <Upload size={18} className="text-emerald-400 group-hover:scale-110 transition-transform duration-300" />
+          <Upload size={18} className={`${uploadError ? 'text-red-400' : 'text-emerald-400'} group-hover:scale-110 transition-transform duration-300`} />
           {paymentProof ? (
             <span className="truncate max-w-full">{paymentProof.name}</span>
           ) : (
@@ -878,10 +776,17 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
           )}
         </label>
         
-        {uploadDisabled && (
+        {uploadError && (
+          <div className="mt-3 bg-red-500/10 rounded-lg p-3 border border-red-500/30 text-xs text-red-300 flex items-center">
+            <AlertCircle size={16} className="mr-2 shrink-0" /> 
+            <span>{uploadError}</span>
+          </div>
+        )}
+        
+        {uploadFallbackMode && (
           <div className="mt-3 bg-amber-500/10 rounded-lg p-3 border border-amber-500/30 text-xs text-amber-300 flex items-center">
             <AlertCircle size={16} className="mr-2 shrink-0" /> 
-            <span>Storage uploads are currently using a fallback method. Your order will still be processed normally.</span>
+            <span>Using alternative upload method. Your order will still be processed normally.</span>
           </div>
         )}
         
@@ -898,6 +803,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                   onError={() => {
                     toast.error('Failed to load image preview');
                     setPaymentProofPreview(null);
+                    setUploadError('Failed to load image preview. Please try another image.');
                   }}
                 />
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
@@ -909,6 +815,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                 onClick={() => {
                   setPaymentProof(null);
                   setPaymentProofPreview(null);
+                  setUploadError(null);
                 }}
                 className="bg-gray-800/90 text-white p-1.5 rounded-full hover:bg-red-500 transition-colors duration-200 shadow-md"
                 aria-label="Remove image"
@@ -969,6 +876,9 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                     src={logoImage} 
                     alt="" 
                     className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = 'https://i.imgur.com/ArKEQz1.png';
+                    }}
                   />
                 </div>
               </div>
@@ -1103,7 +1013,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
               {/* Payment Details Section */}
               <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">
-                <h3 className="text-base sm:text-lg font-semibold text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-700/50">
+                <h3 className="text-base sm:text-lg font-semibold text-white mb-4 flex items-center gap-2">
                   <div className="bg-emerald-500/20 p-1.5 rounded-lg">
                     <CreditCard size={16} className="text-emerald-400" />
                   </div>
@@ -1130,7 +1040,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || !paymentProof}
                 className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3.5 px-4 transition duration-300 disabled:opacity-50 transform hover:scale-[1.02] text-sm sm:text-base font-medium mt-6 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-opacity-50 shadow-lg relative group"
               >
                 <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-200 group-disabled:opacity-0"></div>
@@ -1141,14 +1051,16 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Processing...
+                      {loadingStage === 'uploading' ? 'Uploading image...' : 
+                       loadingStage === 'processing' ? 'Processing order...' : 
+                       loadingStage === 'finalizing' ? 'Finalizing...' : 'Processing...'}
                     </span>
                   ) : (
                     <>
                       <span className="mr-2">
                         <CreditCard size={18} />
                       </span>
-                      Submit Order
+                      {!paymentProof ? 'Upload Payment Proof to Continue' : 'Submit Order'}
                     </>
                   )}
                 </div>
