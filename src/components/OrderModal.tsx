@@ -716,8 +716,11 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
   // Enhanced file upload section with preview and fallback message
   const renderFileUploadSection = () => (
-    <div>
-      <label className="block text-sm font-medium text-gray-300 mb-1">
+    <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">
+      <label className="block text-sm font-medium text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-700/50">
+        <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+          <Upload size={16} className="text-emerald-400" />
+        </div>
         Payment Proof (QR Code Screenshot)
       </label>
       <div className="relative">
@@ -732,7 +735,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         />
         <label
           htmlFor={!uploadDisabled ? "payment-proof" : undefined}
-          className={`w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 sm:py-3 px-3 sm:px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300 text-sm sm:text-base group ${uploadDisabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+          className={`w-full bg-gray-700/50 border border-gray-600/80 rounded-lg py-3 px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300 text-sm sm:text-base group ${uploadDisabled ? 'opacity-70 cursor-not-allowed' : ''}`}
         >
           <Upload size={18} className="text-emerald-400 group-hover:scale-110 transition-transform duration-300" />
           {paymentProof ? (
@@ -743,26 +746,29 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         </label>
         
         {uploadDisabled && (
-          <div className="mt-2 bg-amber-500/10 rounded-lg p-3 border border-amber-500/30 text-xs text-amber-400 flex items-center">
+          <div className="mt-3 bg-amber-500/10 rounded-lg p-3 border border-amber-500/30 text-xs text-amber-400 flex items-center">
             <AlertCircle size={16} className="mr-2 shrink-0" /> 
             <span>Storage uploads may be unavailable. Please contact support or try again later.</span>
           </div>
         )}
         
         {paymentProofPreview && (
-          <div className="mt-3 relative animate-fadeIn">
-            <div className="bg-gray-700/50 rounded-lg overflow-hidden border border-gray-600 group relative transition-all hover:border-emerald-500/50 shadow-md">
-              <img 
-                src={paymentProofPreview} 
-                alt="Payment proof preview" 
-                className="w-full h-auto max-h-[200px] object-contain rounded transition-transform duration-300 group-hover:scale-[1.02]"
-                onLoad={() => console.log('Preview image loaded')}
-                onError={() => {
-                  toast.error('Failed to load image preview');
-                  setPaymentProofPreview(null);
-                }}
-              />
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+          <div className="mt-4 relative animate-fadeIn">
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-200"></div>
+              <div className="relative bg-gray-700/70 rounded-lg overflow-hidden border border-gray-600/50 transition-all hover:border-emerald-500/50 shadow-md">
+                <img 
+                  src={paymentProofPreview} 
+                  alt="Payment proof preview" 
+                  className="w-full h-auto max-h-[200px] object-contain rounded transition-transform duration-300 group-hover:scale-[1.02]"
+                  onLoad={() => console.log('Preview image loaded')}
+                  onError={() => {
+                    toast.error('Failed to load image preview');
+                    setPaymentProofPreview(null);
+                  }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+              </div>
             </div>
             <div className="absolute top-2 right-2 flex gap-1">
               <button 
@@ -771,26 +777,26 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
                   setPaymentProof(null);
                   setPaymentProofPreview(null);
                 }}
-                className="bg-gray-800/80 text-white p-1.5 rounded-full hover:bg-red-500 transition-colors duration-200 shadow-md"
+                className="bg-gray-800/90 text-white p-1.5 rounded-full hover:bg-red-500 transition-colors duration-200 shadow-md"
                 aria-label="Remove image"
               >
                 <X size={14} />
               </button>
             </div>
-            <div className="mt-2 text-xs text-emerald-400 flex items-center justify-center">
-              <Check size={12} className="mr-1" /> Image ready for submission
+            <div className="mt-3 text-xs text-emerald-400 flex items-center justify-center bg-emerald-500/10 py-2 rounded-lg border border-emerald-500/20">
+              <Check size={14} className="mr-1.5" /> Image ready for submission
             </div>
           </div>
         )}
         
         {paymentProof && !paymentProofPreview && (
-          <div className="mt-2 bg-gray-700/50 rounded-lg p-3 border border-gray-600 text-xs flex items-center justify-center animate-pulse">
+          <div className="mt-3 bg-gray-700/70 rounded-lg p-3 border border-gray-600/50 text-xs flex items-center justify-center animate-pulse">
             <div className="animate-spin h-4 w-4 border-2 border-emerald-500 border-t-transparent rounded-full mr-2"></div>
             <span className="text-gray-300">Processing image...</span>
           </div>
         )}
         
-        <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+        <div className="mt-3 text-xs text-gray-500 flex items-center gap-1.5 bg-gray-700/30 rounded-lg p-2 px-3">
           <Info size={12} />
           <span>Accepted formats: JPG, PNG, WebP (max 3MB)</span>
         </div>
@@ -804,7 +810,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       {showOrderForm && (
         <Dialog open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
           <DialogContent 
-            className="bg-gray-800/95 rounded-2xl p-4 sm:p-6 md:p-8 w-full max-w-2xl m-2 sm:m-4 relative max-h-[90vh] overflow-y-auto transition-all duration-300 ease-in-out shadow-xl border border-gray-700"
+            className="bg-gradient-to-b from-gray-900 to-gray-800 rounded-3xl p-5 sm:p-6 w-full max-w-2xl m-2 sm:m-4 relative max-h-[90vh] overflow-y-auto transition-all duration-300 ease-in-out shadow-2xl border border-gray-700/80"
             aria-describedby="order-form-description"
           >
             <DialogTitle>
@@ -817,103 +823,119 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
             
             <button
               onClick={onClose}
-              className="absolute right-3 top-3 sm:right-4 sm:top-4 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-50 rounded-full p-1"
+              className="absolute right-4 top-4 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500/50 rounded-full p-1.5 bg-gray-800/70 hover:bg-gray-700/70"
               aria-label="Close modal"
             >
-              <X size={24} />
+              <X size={20} />
             </button>
 
-            <div className="text-center mb-6">
-              <div className="w-20 h-20 mx-auto mb-3 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg">
-                <img 
-                  src={logoImage} 
-                  alt="" 
-                  className="w-16 h-16 rounded-full object-cover border-2 border-white"
-                />
+            <div className="text-center mb-7">
+              <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center shadow-lg p-1 transform hover:scale-105 transition-transform duration-300">
+                <div className="w-full h-full rounded-full overflow-hidden border-2 border-white flex items-center justify-center">
+                  <img 
+                    src={logoImage} 
+                    alt="" 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
               </div>
-              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">Complete Your Order</h2>
-              <p className="text-gray-400 text-sm sm:text-base">Select your platform and rank to proceed with the purchase</p>
+              <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-2">Complete Your Order</h2>
+              <p className="text-gray-400 text-sm sm:text-base max-w-md mx-auto">Select your platform and rank to proceed with the purchase</p>
             </div>
 
             {/* Loading Indicator */}
             {initialLoading && (
               <div className="flex justify-center items-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-emerald-500"></div>
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500 p-1">
+                  <div className="rounded-full h-full w-full bg-gray-800"></div>
+                </div>
               </div>
             )}
 
             {!initialLoading && (
-            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
-                {/* Enhanced summary with discount if applicable */}
-              <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 transform transition-all duration-300 hover:border-emerald-500/50">
-                <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
-                  <Info size={18} className="text-emerald-400" />
+            <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+              {/* Enhanced summary with discount if applicable */}
+              <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">
+                <h3 className="text-base sm:text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+                    <Info size={18} className="text-emerald-400" />
+                  </div>
                   Order Summary
                 </h3>
-                <div className="space-y-2 text-sm sm:text-base">
-                  <div className="flex justify-between text-gray-300">
+                <div className="space-y-2.5 text-sm sm:text-base">
+                  <div className="flex justify-between items-center text-gray-300 pb-2 border-b border-gray-700/50">
                     <span>Selected Rank:</span>
-                    <span className="font-medium">{selectedRank}</span>
+                    <span className="font-medium text-white">{selectedRank}</span>
                   </div>
-                  <div className="flex justify-between text-gray-300">
+                  <div className="flex justify-between items-center text-gray-300 pb-2 border-b border-gray-700/50">
                     <span>Platform:</span>
-                    <span className="font-medium capitalize">{platform}</span>
+                    <span className="font-medium text-white capitalize">{platform}</span>
                   </div>
-                  <div className="flex justify-between text-gray-300">
+                  <div className="flex justify-between items-center text-gray-300 pt-1">
                     <span>Price:</span>
                       {selectedRankOption?.originalPrice && selectedRankOption.originalPrice > selectedRankOption.price ? (
                         <div className="flex flex-col items-end">
                           <span className="line-through text-gray-500 text-xs">${selectedRankOption.originalPrice.toFixed(2)}</span>
-                          <span className="font-medium text-emerald-400">${selectedRankOption.price.toFixed(2)}</span>
+                          <span className="font-medium text-emerald-400 text-lg">${selectedRankOption.price.toFixed(2)}</span>
                         </div>
                       ) : (
-                        <span className="font-medium text-emerald-400">${selectedRankPrice.toFixed(2)}</span>
+                        <span className="font-medium text-emerald-400 text-lg">${selectedRankPrice.toFixed(2)}</span>
                       )}
                   </div>
                 </div>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-gray-300 mb-1 flex items-center gap-2">
-                  <User size={16} className="text-emerald-400" />
-                  Minecraft Username
-                </label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400 text-sm sm:text-base transition-all duration-200"
-                  required
-                  placeholder="Enter your Minecraft username"
-                  autoFocus
-                />
-                <p className="text-xs text-gray-500 mt-1 ml-1">Only letters, numbers, and underscores allowed</p>
-              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">
+                  <label className="text-sm font-medium text-white mb-3 flex items-center gap-2 pb-2 border-b border-gray-700/50">
+                    <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+                      <User size={16} className="text-emerald-400" />
+                    </div>
+                    Minecraft Username
+                  </label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    className="w-full bg-gray-700/50 border border-gray-600/80 rounded-lg py-2.5 px-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/50 text-sm sm:text-base transition-all duration-200 mt-3"
+                    required
+                    placeholder="Enter your Minecraft username"
+                    autoFocus
+                  />
+                  <p className="text-xs text-gray-500 mt-2 ml-1">Only letters, numbers, and underscores allowed</p>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
-                  Platform
-                </label>
-                <div className="flex gap-2">
-                  <PlatformButton 
-                    label="java" 
-                    isSelected={platform === 'java'} 
-                    onClick={() => setPlatform('java')} 
-                  />
-                  <PlatformButton 
-                    label="bedrock" 
-                    isSelected={platform === 'bedrock'} 
-                    onClick={() => setPlatform('bedrock')} 
-                  />
+                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">
+                  <label className="block text-sm font-medium text-white mb-3 flex items-center gap-2 pb-2 border-b border-gray-700/50">
+                    <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+                      <Shield size={16} className="text-emerald-400" />
+                    </div>
+                    Platform
+                  </label>
+                  <div className="flex gap-3 mt-3">
+                    <PlatformButton 
+                      label="java" 
+                      isSelected={platform === 'java'} 
+                      onClick={() => setPlatform('java')} 
+                    />
+                    <PlatformButton 
+                      label="bedrock" 
+                      isSelected={platform === 'bedrock'} 
+                      onClick={() => setPlatform('bedrock')} 
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">
+              <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">
+                <label className="block text-sm font-medium text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-700/50">
+                  <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+                    <Shield size={16} className="text-emerald-400" />
+                  </div>
                   Select Rank
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                    {ranks.map((rank) => (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                  {ranks.map((rank) => (
                     <RankButton
                       key={rank.name}
                       rank={rank}
@@ -926,59 +948,77 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
 
               {/* Rank Preview Section */}
               {selectedRankOption && (
-                <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 hover:border-emerald-500/30 transition-all duration-300">
-                  <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
-                    <Shield size={18} className="text-emerald-400" />
+                <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20 overflow-hidden">
+                  <h3 className="text-base sm:text-lg font-semibold text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-700/50">
+                    <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+                      <Shield size={16} className="text-emerald-400" />
+                    </div>
                     {selectedRank} Rank Preview
                   </h3>
                   <div className="flex justify-center">
-                    <img 
-                      src={selectedRankOption.image} 
-                      alt={`${selectedRank} Kit Preview`}
-                      className="w-auto h-auto max-w-full max-h-[250px] object-contain rounded-lg border border-gray-600 transition-transform duration-300 hover:scale-[1.02] shadow-lg"
-                    />
+                    <div className="relative group">
+                      <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-200"></div>
+                      <img 
+                        src={selectedRankOption.image} 
+                        alt={`${selectedRank} Kit Preview`}
+                        className="relative w-auto h-auto max-w-full max-h-[200px] object-contain rounded-lg border border-gray-600/50 transition-transform duration-300 group-hover:scale-[1.03] shadow-lg"
+                      />
+                    </div>
                   </div>
                 </div>
               )}
 
               {/* Payment Details Section */}
-              <div className="bg-gray-700/50 rounded-lg p-3 sm:p-4 border border-gray-600 hover:border-emerald-500/30 transition-all duration-300">
-                <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
-                  <CreditCard size={18} className="text-emerald-400" />
+              <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">
+                <h3 className="text-base sm:text-lg font-semibold text-white mb-4 flex items-center gap-2 pb-2 border-b border-gray-700/50">
+                  <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+                    <CreditCard size={16} className="text-emerald-400" />
+                  </div>
                   Payment Details
                 </h3>
-                <div className="text-center">
-                  <p className="text-gray-300 mb-3 text-sm sm:text-base">Scan the QR code below to pay:</p>
-                  <div className="bg-white p-2 sm:p-4 rounded-lg inline-block transition-transform duration-300 hover:scale-[1.02] shadow-lg">
-                    <img 
+                <div className="text-center py-2">
+                  <p className="text-gray-300 mb-4 text-sm sm:text-base">Scan the QR code below to pay:</p>
+                  <div className="bg-white p-3 sm:p-4 rounded-xl inline-block transition-transform duration-300 hover:scale-[1.03] shadow-lg relative group">
+                    <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-xl blur opacity-25 group-hover:opacity-40 transition duration-200"></div>
+                    <div className="relative bg-white rounded-lg p-2">
+                      <img 
                         src={qrCodeImage} 
-                      alt="Payment QR Code"
-                      className="w-36 h-36 sm:w-48 sm:h-48 mx-auto"
-                    />
+                        alt="Payment QR Code"
+                        className="w-32 h-32 sm:w-40 sm:h-40 mx-auto"
+                      />
+                    </div>
                   </div>
-                  <p className="text-xs sm:text-sm text-gray-400 mt-2">Amount: <span className="text-emerald-400 font-bold">${selectedRankPrice}</span></p>
+                  <p className="text-sm sm:text-base text-gray-400 mt-4">Amount: <span className="text-emerald-400 font-bold">${selectedRankPrice.toFixed(2)}</span></p>
                 </div>
               </div>
 
-                {/* Replace the file upload section with enhanced version */}
-                {renderFileUploadSection()}
+              {/* Replace the file upload section with enhanced version */}
+              {renderFileUploadSection()}
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3 px-4 transition duration-300 disabled:opacity-50 transform hover:scale-[1.02] text-sm sm:text-base font-medium mt-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-opacity-50 shadow-lg"
+                className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-lg py-3.5 px-4 transition duration-300 disabled:opacity-50 transform hover:scale-[1.02] text-sm sm:text-base font-medium mt-6 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-opacity-50 shadow-lg relative group"
               >
-                {loading ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Processing...
-                  </span>
-                ) : (
-                  'Submit Order'
-                )}
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-200 group-disabled:opacity-0"></div>
+                <div className="relative flex items-center justify-center">
+                  {loading ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </span>
+                  ) : (
+                    <>
+                      <span className="mr-2">
+                        <CreditCard size={18} />
+                      </span>
+                      Submit Order
+                    </>
+                  )}
+                </div>
               </button>
             </form>
             )}
@@ -991,7 +1031,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         <ReceiptModal 
           isOpen={showReceipt} 
           onClose={handleReceiptClose} 
-          orderData={receiptData}
+          orderData={receiptData} 
           receiptBackgroundUrl={receiptImage}
           receiptLogoUrl={receiptLogoImage}
           logoUrl={logoImage}

@@ -33,7 +33,7 @@ export async function checkSupabaseBuckets() {
 }
 
 // Attempt to create a storage bucket if none exist
-export async function createStorageBucket(bucketName = 'storage') {
+export async function createStorageBucket(bucketName = ']') {
   try {
     // First check if bucket already exists
     const { data: buckets, error: listError } = await supabase.storage.listBuckets();

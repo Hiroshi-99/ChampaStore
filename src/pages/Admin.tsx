@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Save, Image, DollarSign, Percent, Settings, LogOut, ShoppingCart, FileText, X, AlertTriangle, Lock } from 'lucide-react';
+import { Save, Image, DollarSign, Percent, Settings, LogOut, ShoppingCart, FileText, X, AlertTriangle, Lock, Upload, Shield, Info } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 
 // Enhanced authentication with SessionProvider pattern
 const useAuth = () => {
@@ -108,9 +109,15 @@ const AdminDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
         <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-2 border-emerald-500/30"></div>
+            <div className="absolute inset-0 rounded-full border-t-2 border-emerald-500 animate-spin"></div>
+            <div className="absolute inset-2 rounded-full bg-gray-800 flex items-center justify-center">
+              <Settings size={20} className="text-emerald-400" />
+            </div>
+          </div>
           <p className="text-emerald-400 font-medium">Loading dashboard...</p>
         </div>
       </div>
@@ -120,71 +127,99 @@ const AdminDashboard: React.FC = () => {
   // Login screen
   if (!session) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
-        <div className="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md transition-all duration-300 transform">
-          <div className="text-center mb-6">
-            <Lock className="h-12 w-12 text-emerald-500 mx-auto mb-2" />
-            <h1 className="text-2xl font-bold text-white mb-1">Admin Login</h1>
-            <p className="text-gray-400 text-sm">Secure access to management dashboard</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
+        <div className="bg-gray-800/80 backdrop-blur-sm p-8 rounded-2xl shadow-2xl border border-gray-700/80 w-full max-w-md transition-all duration-300 transform hover:shadow-emerald-900/20">
+          <div className="text-center mb-8">
+            <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-700/20">
+              <Lock className="h-8 w-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent mb-2">Admin Dashboard</h1>
+            <p className="text-gray-400 text-sm">Secure access to management area</p>
           </div>
           
           {authError && (
-            <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded mb-4 flex items-start gap-2">
+            <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl mb-6 flex items-start gap-3 backdrop-blur-sm">
               <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
               <p className="text-sm">{authError}</p>
             </div>
           )}
           
-          <form onSubmit={handleLogin} className="space-y-4">
+          <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-gray-300 text-sm font-medium mb-2" htmlFor="email">
                 Email Address
               </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-gray-700/50 text-white border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
-                required
-                autoComplete="username"
-                disabled={loginInProgress}
-              />
+              <div className="relative">
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-xl px-4 py-3 pl-10 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors"
+                  required
+                  autoComplete="username"
+                  disabled={loginInProgress}
+                  placeholder="admin@example.com"
+                />
+                <div className="absolute left-3 top-3.5 text-gray-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+              </div>
             </div>
             
             <div>
               <label className="block text-gray-300 text-sm font-medium mb-2" htmlFor="password">
                 Password
               </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-gray-700/50 text-white border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
-                required
-                autoComplete="current-password"
-                disabled={loginInProgress}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-xl px-4 py-3 pl-10 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors"
+                  required
+                  autoComplete="current-password"
+                  disabled={loginInProgress}
+                  placeholder="••••••••"
+                />
+                <div className="absolute left-3 top-3.5 text-gray-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+              </div>
             </div>
             
             <button
               type="submit"
               disabled={loginInProgress}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-700/50 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center"
+              className="w-full mt-6 relative group"
             >
-              {loginInProgress ? (
-                <>
-                  <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2"></div>
-                  <span>Authenticating...</span>
-                </>
-              ) : (
-                'Sign In'
-              )}
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-xl blur opacity-30 group-hover:opacity-80 transition duration-200 group-disabled:opacity-20"></div>
+              <div className="relative bg-gradient-to-r from-emerald-600 to-emerald-500 text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center group-hover:from-emerald-500 group-hover:to-emerald-400 group-disabled:from-emerald-700/50 group-disabled:to-emerald-600/50 group-disabled:cursor-not-allowed">
+                {loginInProgress ? (
+                  <>
+                    <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-3"></div>
+                    <span>Authenticating...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="mr-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                      </svg>
+                    </span>
+                    Sign In
+                  </>
+                )}
+              </div>
             </button>
           </form>
           
-          <p className="text-gray-500 text-xs text-center mt-6">
+          <p className="text-gray-500 text-xs text-center mt-8">
             Protected area. Unauthorized access attempts will be logged.
           </p>
         </div>
@@ -193,60 +228,80 @@ const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex">
       {/* Responsive Sidebar */}
-      <div className="w-64 bg-gray-800 border-r border-gray-700 hidden md:block">
-        <div className="p-4 border-b border-gray-700">
-          <h1 className="text-xl font-bold text-white">Admin Dashboard</h1>
+      <div className="w-64 bg-gray-800/80 backdrop-blur-sm border-r border-gray-700/80 hidden md:flex md:flex-col">
+        <div className="p-5 border-b border-gray-700/80">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg">
+              <Settings size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white">Admin Panel</h1>
+              <p className="text-xs text-gray-400">Champa Store</p>
+            </div>
+          </div>
         </div>
         
-        <nav className="mt-4">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`w-full text-left px-4 py-3 flex items-center gap-3 ${
-                activeTab === tab.id ? 'bg-gray-700 text-emerald-400' : 'text-gray-300 hover:bg-gray-700/50'
-              }`}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          ))}
+        <nav className="flex-1 p-4">
+          <ul className="space-y-2">
+            {tabs.map(tab => (
+              <li key={tab.id}>
+                <button
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-emerald-500/20 text-emerald-400 border-l-2 border-emerald-500'
+                      : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
+                  }`}
+                >
+                  <span className={activeTab === tab.id ? 'text-emerald-400' : 'text-gray-500'}>
+                    {tab.icon}
+                  </span>
+                  <span className="font-medium">{tab.label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
         </nav>
         
-        <div className="absolute bottom-0 left-0 w-64 p-4 border-t border-gray-700">
+        <div className="p-4 border-t border-gray-700/80">
           <button
             onClick={logout}
-            className="w-full bg-gray-700 hover:bg-gray-600 text-gray-200 font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
           >
-            <LogOut size={18} />
-            <span>Logout</span>
+            <LogOut size={16} />
+            <span>Sign Out</span>
           </button>
         </div>
       </div>
       
       {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 bg-gray-800 border-b border-gray-700 z-10">
-        <div className="flex items-center justify-between p-4">
-          <h1 className="text-lg font-bold text-white">Admin Dashboard</h1>
-          
+      <div className="md:hidden fixed top-0 inset-x-0 z-10 bg-gray-800 border-b border-gray-700 p-4">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
+              <Settings size={16} className="text-white" />
+            </div>
+            <h1 className="text-lg font-bold text-white">Admin Panel</h1>
+          </div>
           <button
             onClick={logout}
-            className="bg-gray-700 hover:bg-gray-600 text-gray-200 p-2 rounded transition-colors"
-            aria-label="Logout"
+            className="p-2 rounded-lg bg-gray-700 text-gray-300"
           >
             <LogOut size={18} />
           </button>
         </div>
         
-        <div className="flex overflow-x-auto border-t border-gray-700">
-          {tabs.map((tab) => (
+        <div className="mt-4 grid grid-cols-4 gap-1">
+          {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex-1 flex flex-col items-center justify-center py-3 px-2 ${
-                activeTab === tab.id ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-gray-400'
+              className={`flex flex-col items-center justify-center p-2 rounded-lg ${
+                activeTab === tab.id
+                  ? 'bg-emerald-500/20 text-emerald-400'
+                  : 'text-gray-400 hover:bg-gray-700'
               }`}
             >
               {tab.icon}
@@ -257,11 +312,26 @@ const AdminDashboard: React.FC = () => {
       </div>
       
       {/* Main Content */}
-      <div className="flex-1 p-4 md:p-8 overflow-auto md:ml-0 mt-24 md:mt-0">
-        {activeTab === 'images' && <ImageManager />}
-        {activeTab === 'prices' && <PriceManager />}
-        {activeTab === 'orders' && <OrdersManager />}
-        {activeTab === 'settings' && <SettingsManager />}
+      <div className="flex-1 overflow-x-hidden md:p-0 md:pt-0 pt-28 p-4">
+        <div className="container mx-auto p-4 md:p-6 max-w-6xl">
+          {/* Page Title */}
+          <div className="mb-6 hidden md:block">
+            <h1 className="text-2xl font-bold text-white">
+              {tabs.find(tab => tab.id === activeTab)?.label}
+            </h1>
+            <p className="text-gray-400 mt-1">
+              Manage your store {tabs.find(tab => tab.id === activeTab)?.label.toLowerCase()} settings
+            </p>
+          </div>
+          
+          {/* Tab Content */}
+          <div className="transition-all duration-300">
+            {activeTab === 'images' && <ImageManager />}
+            {activeTab === 'prices' && <PriceManager />}
+            {activeTab === 'orders' && <OrdersManager />}
+            {activeTab === 'settings' && <SettingsManager />}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -362,10 +432,10 @@ const ImageManager: React.FC = () => {
           .eq('name', rankName);
       }
       
-      alert('Images saved successfully!');
+      toast.success('All images saved successfully!');
     } catch (error) {
       console.error('Error saving images:', error);
-      alert('Failed to save images. Please try again.');
+      toast.error('Failed to save images. Please try again.');
     } finally {
       setIsSaving(false);
     }
@@ -384,13 +454,13 @@ const ImageManager: React.FC = () => {
     
     // Validate file
     if (!file.type.startsWith('image/')) {
-      alert('Please upload a valid image file');
+      toast.error('Please upload a valid image file');
       return;
     }
     
     // Max size 2MB
     if (file.size > 2 * 1024 * 1024) {
-      alert('Image is too large (max 2MB)');
+      toast.error('Image is too large (max 2MB)');
       return;
     }
     
@@ -399,18 +469,16 @@ const ImageManager: React.FC = () => {
     try {
       // Create a unique filename
       const timestamp = Date.now();
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${imageType}_${timestamp}.${fileExt}`;
-      const filePath = `images/${fileName}`;
+      const randomString = Math.random().toString(36).substring(2, 10);
+      const fileExtension = file.name.split('.').pop() || 'jpg';
+      const fileName = `${imageType}_${timestamp}_${randomString}.${fileExtension}`;
+      const filePath = `store-images/${fileName}`;
       
-      // Try uploading to various possible bucket names
-      let uploadError;
-      let bucketName;
+      // Try multiple buckets in case some are not available
+      let uploadResult = null;
+      let bucketName = null;
       
-      // List of possible bucket names to try
-      const possibleBuckets = ['payment-proofs', 'uploads', 'media', 'public', 'images', 'storage'];
-      
-      for (const bucket of possibleBuckets) {
+      for (const bucket of ['images', 'store-images', 'public', 'media', 'uploads']) {
         try {
           const result = await supabase.storage
             .from(bucket)
@@ -420,25 +488,20 @@ const ImageManager: React.FC = () => {
             });
             
           if (!result.error) {
+            uploadResult = result;
             bucketName = bucket;
-            uploadError = null;
-            console.log(`Upload successful to bucket: ${bucket}`);
             break;
           }
-          
-          uploadError = result.error;
         } catch (err) {
-          console.log(`Failed to upload to bucket ${bucket}:`, err);
-          uploadError = err;
+          // Continue trying the next bucket
         }
       }
       
-      if (uploadError || !bucketName) {
-        console.error('All bucket attempts failed:', uploadError);
-        throw new Error(`Failed to upload image: ${uploadError ? (uploadError as any).message || 'Unknown error' : 'No valid storage bucket found'}`);
+      if (!uploadResult || !bucketName) {
+        throw new Error('Failed to upload image: No valid storage bucket found');
       }
       
-      // Get the public URL from the successful bucket
+      // Get public URL
       const { data: urlData } = supabase.storage
         .from(bucketName)
         .getPublicUrl(filePath);
@@ -448,9 +511,8 @@ const ImageManager: React.FC = () => {
       }
       
       const imageUrl = urlData.publicUrl;
-      console.log(`Image uploaded successfully to ${bucketName}:`, imageUrl);
       
-      // Update the appropriate state based on image type
+      // Update the appropriate image state based on type
       switch (imageType) {
         case 'banner':
           setBannerImage(imageUrl);
@@ -458,7 +520,7 @@ const ImageManager: React.FC = () => {
         case 'logo':
           setLogoImage(imageUrl);
           break;
-        case 'qrcode':
+        case 'qr_code':
           setQrCodeImage(imageUrl);
           break;
         case 'receipt':
@@ -468,22 +530,20 @@ const ImageManager: React.FC = () => {
           setReceiptLogoImage(imageUrl);
           break;
         case 'rank':
-          setRankImages({
-            ...rankImages,
-            [selectedRank]: imageUrl
-          });
+          handleRankImageChange(imageUrl);
           break;
       }
       
+      toast.success('Image uploaded successfully!');
     } catch (error: any) {
       console.error('Upload error:', error);
-      alert(`Failed to upload image: ${error.message}`);
+      toast.error(`Failed to upload image: ${error.message}`);
     } finally {
       setUploadLoading(null);
     }
   };
   
-  // Image upload component
+  // Image uploader component for reuse
   const ImageUploader = ({ 
     imageType, 
     currentUrl, 
@@ -493,235 +553,327 @@ const ImageManager: React.FC = () => {
     currentUrl: string;
     label: string;
   }) => (
-    <div className="relative group">
-      <input
-        type="file"
-        id={`upload-${imageType}`}
-        className="hidden"
-        accept="image/*"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFileUpload(file, imageType);
-        }}
-      />
-      <label 
-        htmlFor={`upload-${imageType}`} 
-        className="absolute inset-0 flex items-center justify-center bg-black/70 text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-      >
-        {uploadLoading === imageType ? (
-          <div className="flex items-center gap-2">
-            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-            <span>Uploading...</span>
-          </div>
-        ) : (
-          <>Upload {label}</>
-        )}
+    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/60 rounded-lg backdrop-blur-sm">
+      <label className="cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors flex items-center gap-2">
+        <Upload size={14} />
+        Update {label}
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleFileUpload(file, imageType);
+          }}
+          disabled={!!uploadLoading}
+        />
       </label>
     </div>
   );
-  
+
   if (loading) {
-    return <div className="text-white">Loading images...</div>;
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="relative">
+          <div className="w-12 h-12 border-2 border-emerald-500/30 rounded-full"></div>
+          <div className="absolute inset-0 rounded-full border-t-2 border-emerald-500 animate-spin"></div>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Image size={16} className="text-emerald-400" />
+          </div>
+        </div>
+      </div>
+    );
   }
-  
+
   return (
-    <div>
-      <h2 className="text-2xl font-bold text-white mb-6">Image Management</h2>
-      
-      <div className="grid grid-cols-1 gap-8">
-        {/* Main Images Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="bg-gray-800 p-6 rounded-xl">
-            <h3 className="text-xl font-semibold text-white mb-4">Banner Image</h3>
-            
-            <div className="mb-4 bg-gray-900 p-2 rounded-lg relative group overflow-hidden">
-              <img 
-                src={bannerImage} 
-                alt="Banner Preview" 
-                className="w-full h-40 object-cover rounded-lg"
-              />
-              <ImageUploader imageType="banner" currentUrl={bannerImage} label="Banner" />
-            </div>
-            
-            <div className="mb-4">
-              <label className="block text-gray-300 mb-2">Image URL</label>
-              <input
-                type="text"
-                value={bannerImage}
-                onChange={(e) => setBannerImage(e.target.value)}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
+    <div className="space-y-8">
+      {/* Floating save button */}
+      <div className="fixed bottom-6 right-6 z-40">
+        <button
+          onClick={handleSaveImages}
+          disabled={isSaving || !!uploadLoading}
+          className="relative group"
+        >
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full blur opacity-60 group-hover:opacity-100 transition duration-200 group-disabled:opacity-30"></div>
+          <div className="relative bg-gray-900 text-white px-6 py-3 rounded-full flex items-center gap-2 group-hover:bg-gray-800 transition-colors">
+            {isSaving ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                <span>Saving...</span>
+              </>
+            ) : (
+              <>
+                <Save size={18} className="text-emerald-400" />
+                <span>Save Changes</span>
+              </>
+            )}
           </div>
-          
-          <div className="bg-gray-800 p-6 rounded-xl">
-            <h3 className="text-xl font-semibold text-white mb-4">Logo Image</h3>
-            
-            <div className="mb-4 bg-gray-900 p-2 rounded-lg flex items-center justify-center relative group">
-              <img 
-                src={logoImage} 
-                alt="Logo Preview" 
-                className="w-20 h-20 object-cover rounded-full border-2 border-emerald-500"
-              />
-              <ImageUploader imageType="logo" currentUrl={logoImage} label="Logo" />
-            </div>
-            
-            <div className="mb-4">
-              <label className="block text-gray-300 mb-2">Image URL</label>
-              <input
-                type="text"
-                value={logoImage}
-                onChange={(e) => setLogoImage(e.target.value)}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-              />
-            </div>
+        </button>
+      </div>
+
+      {/* Main store images */}
+      <div className="bg-gradient-to-br from-gray-800/80 to-gray-800/40 rounded-2xl p-6 border border-gray-700/50 backdrop-blur-sm shadow-xl">
+        <h3 className="text-xl font-semibold text-white mb-5 pb-3 border-b border-gray-700/50 flex items-center gap-2">
+          <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+            <Image size={18} className="text-emerald-400" />
           </div>
-        </div>
-        
-        {/* Payment QR Code Section */}
-        <div className="bg-gray-800 p-6 rounded-xl">
-          <h3 className="text-xl font-semibold text-white mb-4">Payment QR Code</h3>
+          Main Store Images
+        </h3>
           
-          <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center relative group">
-            <img 
-              src={qrCodeImage} 
-              alt="Payment QR Code Preview" 
-              className="w-48 h-48 object-contain"
-            />
-            <ImageUploader imageType="qrcode" currentUrl={qrCodeImage} label="QR Code" />
-          </div>
-          
-          <div className="mb-4">
-            <label className="block text-gray-300 mb-2">QR Code Image URL</label>
-            <input
-              type="text"
-              value={qrCodeImage}
-              onChange={(e) => setQrCodeImage(e.target.value)}
-              className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-            />
-            <p className="text-xs text-gray-400 mt-1">This QR code will be displayed in the order modal for payment</p>
-          </div>
-        </div>
-        
-        {/* Receipt Images Section */}
-        <div className="bg-gray-800 p-6 rounded-xl">
-          <h3 className="text-xl font-semibold text-white mb-4">Receipt Images</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-5">
             <div>
-              <label className="block text-gray-300 mb-2">Receipt Background</label>
-              <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center relative group">
+              <label className="block text-gray-300 mb-2 font-medium">Store Logo</label>
+              <div className="mb-3 bg-gray-900/70 p-4 rounded-xl flex items-center justify-center relative group h-48 overflow-hidden border border-gray-700/50 shadow-md hover:shadow-emerald-900/10 transition-shadow">
                 <img 
-                  src={receiptImage} 
-                  alt="Receipt Background Preview" 
-                  className="w-full h-40 object-cover rounded-lg"
+                  src={logoImage} 
+                  alt="Logo Preview" 
+                  className="h-32 object-contain"
                 />
-                <ImageUploader imageType="receipt" currentUrl={receiptImage} label="Background" />
+                <ImageUploader imageType="logo" currentUrl={logoImage} label="Logo" />
+                {uploadLoading === 'logo' && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-sm text-emerald-400">Uploading...</span>
+                    </div>
+                  </div>
+                )}
               </div>
-              
-              <div className="mb-4">
+                
+              <div className="relative">
                 <input
                   type="text"
-                  value={receiptImage}
-                  onChange={(e) => setReceiptImage(e.target.value)}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+                  value={logoImage}
+                  onChange={(e) => setLogoImage(e.target.value)}
+                  className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors text-sm"
                 />
-                <p className="text-xs text-gray-400 mt-1">Background image for the receipt</p>
+                <p className="text-xs text-gray-400 mt-1.5 ml-1">Store logo displayed site-wide</p>
               </div>
             </div>
-            
+              
             <div>
-              <label className="block text-gray-300 mb-2">Receipt Logo</label>
-              <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center relative group">
+              <label className="block text-gray-300 mb-2 font-medium">Banner Image</label>
+              <div className="mb-3 bg-gray-900/70 p-4 rounded-xl flex items-center justify-center relative group overflow-hidden border border-gray-700/50 shadow-md hover:shadow-emerald-900/10 transition-shadow">
                 <img 
-                  src={receiptLogoImage} 
-                  alt="Receipt Logo Preview" 
+                  src={bannerImage} 
+                  alt="Banner Preview" 
+                  className="w-full h-32 object-cover rounded-lg"
+                />
+                <ImageUploader imageType="banner" currentUrl={bannerImage} label="Banner" />
+                {uploadLoading === 'banner' && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-sm text-emerald-400">Uploading...</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+                
+              <div className="relative">
+                <input
+                  type="text"
+                  value={bannerImage}
+                  onChange={(e) => setBannerImage(e.target.value)}
+                  className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1.5 ml-1">Banner image shown at the top of the store page</p>
+              </div>
+            </div>
+          </div>
+            
+          <div>
+            <label className="block text-gray-300 mb-2 font-medium">Payment QR Code</label>
+            <div className="mb-3 bg-gray-900/70 p-4 rounded-xl flex items-center justify-center relative group h-48 overflow-hidden border border-gray-700/50 shadow-md hover:shadow-emerald-900/10 transition-shadow">
+              <div className="bg-white p-3 rounded-lg">
+                <img 
+                  src={qrCodeImage} 
+                  alt="QR Code Preview" 
                   className="w-32 h-32 object-contain"
                 />
-                <ImageUploader imageType="receipt_logo" currentUrl={receiptLogoImage} label="Logo" />
               </div>
+              <ImageUploader imageType="qr_code" currentUrl={qrCodeImage} label="QR Code" />
+              {uploadLoading === 'qr_code' && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm text-emerald-400">Uploading...</span>
+                  </div>
+                </div>
+              )}
+            </div>
               
-              <div className="mb-4">
-                <input
-                  type="text"
-                  value={receiptLogoImage}
-                  onChange={(e) => setReceiptLogoImage(e.target.value)}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-                />
-                <p className="text-xs text-gray-400 mt-1">Logo displayed on the receipt</p>
-              </div>
+            <div className="mb-4">
+              <input
+                type="text"
+                value={qrCodeImage}
+                onChange={(e) => setQrCodeImage(e.target.value)}
+                className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-1.5 ml-1">QR code for payments</p>
             </div>
           </div>
         </div>
+      </div>
         
-        {/* Rank Preview Images Section */}
-        <div className="bg-gray-800 p-6 rounded-xl">
-          <h3 className="text-xl font-semibold text-white mb-4">Rank Preview Images</h3>
-          
-          <div className="mb-4">
-            <label className="block text-gray-300 mb-2">Select Rank</label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 mb-4">
-              {Object.keys(rankImages).map((rankName) => (
-                <button
-                  key={rankName}
-                  onClick={() => setSelectedRank(rankName)}
-                  className={`py-2 px-3 rounded-lg border transition-all ${
-                    selectedRank === rankName
-                      ? `bg-gradient-to-r ${rankName === 'VIP' ? 'from-emerald-500 to-emerald-600' : 
-                         rankName === 'MVP' ? 'from-blue-500 to-blue-600' :
-                         rankName === 'MVP+' ? 'from-purple-500 to-purple-600' :
-                         rankName === 'LEGEND' ? 'from-yellow-500 to-yellow-600' :
-                         rankName === 'DEVIL' ? 'from-red-500 to-red-600' :
-                         rankName === 'INFINITY' ? 'from-pink-500 to-pink-600' :
-                         'from-orange-500 to-orange-600'} text-white border-transparent`
-                      : 'bg-gray-700/50 text-gray-300 border-gray-600 hover:bg-gray-600/50'
-                  }`}
-                >
-                  {rankName}
-                </button>
-              ))}
+      <div className="bg-gradient-to-br from-gray-800/80 to-gray-800/40 rounded-2xl p-6 border border-gray-700/50 backdrop-blur-sm shadow-xl">
+        <h3 className="text-xl font-semibold text-white mb-5 pb-3 border-b border-gray-700/50 flex items-center gap-2">
+          <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+            <FileText size={18} className="text-emerald-400" />
+          </div>
+          Receipt Images
+        </h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-gray-300 mb-2 font-medium">Receipt Background</label>
+            <div className="mb-3 bg-gray-900/70 p-4 rounded-xl flex items-center justify-center relative group overflow-hidden border border-gray-700/50 shadow-md hover:shadow-emerald-900/10 transition-shadow">
+              <img 
+                src={receiptImage} 
+                alt="Receipt Background Preview" 
+                className="w-full h-40 object-cover rounded-lg"
+              />
+              <ImageUploader imageType="receipt" currentUrl={receiptImage} label="Background" />
+              {uploadLoading === 'receipt' && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm text-emerald-400">Uploading...</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="mb-4">
+              <input
+                type="text"
+                value={receiptImage}
+                onChange={(e) => setReceiptImage(e.target.value)}
+                className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-1.5 ml-1">Background image for the receipt</p>
             </div>
           </div>
           
-          <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center relative group">
-            <img 
-              src={rankImages[selectedRank] || ''} 
-              alt={`${selectedRank} Preview`} 
-              className="h-48 object-contain"
-            />
-            <ImageUploader imageType="rank" currentUrl={rankImages[selectedRank] || ''} label="Rank Image" />
-          </div>
-          
-          <div className="mb-4">
-            <label className="block text-gray-300 mb-2">{selectedRank} Image URL</label>
-            <input
-              type="text"
-              value={rankImages[selectedRank] || ''}
-              onChange={(e) => handleRankImageChange(e.target.value)}
-              className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-            />
+          <div>
+            <label className="block text-gray-300 mb-2 font-medium">Receipt Logo</label>
+            <div className="mb-3 bg-gray-900/70 p-4 rounded-xl flex items-center justify-center relative group h-40 overflow-hidden border border-gray-700/50 shadow-md hover:shadow-emerald-900/10 transition-shadow">
+              <img 
+                src={receiptLogoImage} 
+                alt="Receipt Logo Preview" 
+                className="w-32 h-32 object-contain"
+              />
+              <ImageUploader imageType="receipt_logo" currentUrl={receiptLogoImage} label="Logo" />
+              {uploadLoading === 'receipt_logo' && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm text-emerald-400">Uploading...</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div className="mb-4">
+              <input
+                type="text"
+                value={receiptLogoImage}
+                onChange={(e) => setReceiptLogoImage(e.target.value)}
+                className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-lg px-4 py-2 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors text-sm"
+              />
+              <p className="text-xs text-gray-400 mt-1.5 ml-1">Logo displayed on the receipt</p>
+            </div>
           </div>
         </div>
       </div>
       
-      <div className="mt-8 flex justify-end">
-        <button 
-          onClick={handleSaveImages}
-          disabled={isSaving}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-2"
-        >
-          {isSaving ? (
-            <>
-              <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-              <span>Saving...</span>
-            </>
-          ) : (
-            <>
-              <Save size={18} />
-              <span>Save All Images</span>
-            </>
-          )}
-        </button>
+      {/* Rank Preview Images Section */}
+      <div className="bg-gradient-to-br from-gray-800/80 to-gray-800/40 rounded-2xl p-6 border border-gray-700/50 backdrop-blur-sm shadow-xl">
+        <h3 className="text-xl font-semibold text-white mb-5 pb-3 border-b border-gray-700/50 flex items-center gap-2">
+          <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+            <Shield size={18} className="text-emerald-400" />
+          </div>
+          Rank Preview Images
+        </h3>
+        
+        {/* Rank selector */}
+        <div className="mb-6">
+          <label className="block text-gray-300 mb-3 font-medium">Select Rank to Edit</label>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-2">
+            {Object.keys(rankImages).map((rank) => (
+              <button
+                key={rank}
+                onClick={() => setSelectedRank(rank)}
+                className={`py-2 px-3 rounded-xl border transition-all text-sm ${
+                  selectedRank === rank
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
+                    : 'bg-gray-700/30 text-gray-300 border-gray-700 hover:bg-gray-700/50'
+                }`}
+              >
+                {rank}
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        {/* Selected rank image editor */}
+        <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50">
+          <h4 className="text-lg font-medium text-white mb-4 flex items-center">
+            <Shield size={16} className="text-emerald-400 mr-2" /> 
+            {selectedRank} Rank Image
+          </h4>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-gray-900/70 p-4 rounded-xl flex items-center justify-center relative group border border-gray-700/50 shadow-md hover:shadow-emerald-900/10 transition-shadow">
+              <div className="relative group">
+                <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-200"></div>
+                <img 
+                  src={rankImages[selectedRank]} 
+                  alt={`${selectedRank} Rank Preview`} 
+                  className="h-48 object-contain relative"
+                />
+              </div>
+              <ImageUploader imageType="rank" currentUrl={rankImages[selectedRank]} label="Image" />
+              {uploadLoading === 'rank' && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm text-emerald-400">Uploading...</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            <div>
+              <div className="mb-4">
+                <input
+                  type="text"
+                  value={rankImages[selectedRank]}
+                  onChange={(e) => handleRankImageChange(e.target.value)}
+                  className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors text-sm"
+                  placeholder="Enter image URL"
+                />
+                <p className="text-xs text-gray-400 mt-2 ml-1">Image displayed when customers select this rank</p>
+              </div>
+              
+              <div className="text-sm text-gray-300 mt-4 space-y-2">
+                <p className="flex items-start gap-2">
+                  <span className="bg-emerald-500/20 p-1 rounded-lg inline-flex mt-0.5">
+                    <Info size={14} className="text-emerald-400" />
+                  </span>
+                  <span>Recommended image dimensions: 800x600 pixels</span>
+                </p>
+                <p className="flex items-start gap-2">
+                  <span className="bg-emerald-500/20 p-1 rounded-lg inline-flex mt-0.5">
+                    <Info size={14} className="text-emerald-400" />
+                  </span>
+                  <span>Use transparent PNG images for best results</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
