@@ -81,6 +81,7 @@ const AdminDashboard: React.FC = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
                 required
+                autoComplete="username"
               />
             </div>
             
@@ -93,6 +94,7 @@ const AdminDashboard: React.FC = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
                 required
+                autoComplete="current-password"
               />
             </div>
             
