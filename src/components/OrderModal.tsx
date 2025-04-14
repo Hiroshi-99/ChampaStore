@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
-import { X, Upload, Info, CreditCard, User, Shield, Check } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { X, Upload, Info, CreditCard, User, Shield, Check, AlertCircle } from 'lucide-react';
+import { supabase, checkSupabaseBuckets } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { sanitizeInput, sanitizeDiscordContent } from '../utils/sanitize';
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
@@ -116,6 +116,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
   const [logoImage, setLogoImage] = useState<string>('https://i.imgur.com/ArKEQz1.png');
   const [initialLoading, setInitialLoading] = useState(true);
   const [paymentProofPreview, setPaymentProofPreview] = useState<string | null>(null);
+  const [uploadDisabled, setUploadDisabled] = useState(false);
 
   // Form steps for guided flow
   const [formStep, setFormStep] = useState<'info' | 'payment' | 'confirmation'>('info');
@@ -127,6 +128,21 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Check if storage is properly configured
+        if (isOpen) {
+          try {
+            const hasBuckets = await checkSupabaseBuckets();
+            if (!hasBuckets) {
+              setUploadDisabled(true);
+              console.warn('Storage uploads likely to fail - no buckets available');
+            } else {
+              setUploadDisabled(false);
+            }
+          } catch (err) {
+            console.error('Error checking storage buckets:', err);
+          }
+        }
+        
         // Fetch ranks
         const { data: productsData, error: productsError } = await supabase
           .from('products')
@@ -476,19 +492,109 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
       // Set loading state to uploading
       setLoadingStage('uploading');
       
-      // Upload the file to storage
-      const { error: uploadError, data: fileData } = await supabase.storage
-        .from('public')
-        .upload(filePath, paymentProof, {
-          cacheControl: '3600',
-          upsert: false
-        });
-        
-      if (uploadError) throw new Error(`File upload failed: ${uploadError.message}`);
+      // Try uploading to various possible bucket names
+      let uploadError;
+      let fileData;
+      let bucketName;
       
-      // Get public URL
+      // List of possible bucket names to try
+      const possibleBuckets = ['payment-proofs', 'uploads', 'media', 'public', 'images', 'storage'];
+      
+      for (const bucket of possibleBuckets) {
+        try {
+          const result = await supabase.storage
+            .from(bucket)
+            .upload(filePath, paymentProof, {
+              cacheControl: '3600',
+              upsert: false
+            });
+            
+          if (!result.error) {
+            fileData = result.data;
+            bucketName = bucket;
+            uploadError = null;
+            break;
+          }
+          
+          uploadError = result.error;
+        } catch (err) {
+          uploadError = err;
+        }
+      }
+      
+      if (uploadError || !bucketName) {
+        console.error('All bucket attempts failed:', uploadError);
+        
+        // Fallback to direct data URL if storage fails
+        const reader = new FileReader();
+        return new Promise((resolve, reject) => {
+          reader.onload = async (event) => {
+            if (!event.target || !event.target.result) {
+              reject(new Error('Failed to read file data'));
+              return;
+            }
+            
+            const dataUrl = event.target.result as string;
+            
+            try {
+              // Continue with order processing using data URL
+              setLoadingStage('processing');
+              
+              // Create order with data URL instead of storage path
+              const orderData = {
+                username: sanitizedUsername,
+                platform,
+                rank: selectedRank,
+                price: selectedRankOption.price,
+                payment_proof: dataUrl, // Store data URL directly
+                created_at: new Date().toISOString(),
+                status: 'pending'
+              };
+              
+              // Process the order
+              const { data: insertData, error: insertError } = await supabase
+                .from('orders')
+                .insert([orderData])
+                .select();
+              
+              if (insertError) throw new Error(`Order submission failed: ${insertError.message}`);
+              
+              // Set loading state to finalizing
+              setLoadingStage('finalizing');
+              
+              // Send notification to Discord (with data URL)
+              await sendToDiscord(orderData, dataUrl);
+              
+              // Update receipt data for the confirmation modal
+              setReceiptData({
+                ...orderData,
+                payment_proof: dataUrl,
+                orderId: insertData[0]?.id || 'N/A'
+              });
+              
+              // Show success notification
+              toast.success('Order submitted successfully!');
+              
+              // Show receipt modal
+              setOrderComplete(true);
+              setShowReceipt(true);
+              resolve(true);
+            } catch (error) {
+              reject(error);
+            }
+          };
+          
+          reader.onerror = () => {
+            reject(new Error('Failed to read file data'));
+          };
+          
+          reader.readAsDataURL(paymentProof);
+        });
+      }
+      
+      // Get public URL from the successful bucket
       const { data: urlData } = supabase.storage
-        .from('public')
+        .from(bucketName)
         .getPublicUrl(filePath);
         
       if (!urlData || !urlData.publicUrl) {
@@ -608,7 +714,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     };
   }, [paymentProofPreview]);
 
-  // Enhanced file upload section with preview
+  // Enhanced file upload section with preview and fallback message
   const renderFileUploadSection = () => (
     <div>
       <label className="block text-sm font-medium text-gray-300 mb-1">
@@ -622,10 +728,11 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
           className="hidden"
           id="payment-proof"
           required
+          disabled={uploadDisabled}
         />
         <label
-          htmlFor="payment-proof"
-          className="w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 sm:py-3 px-3 sm:px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300 text-sm sm:text-base group"
+          htmlFor={!uploadDisabled ? "payment-proof" : undefined}
+          className={`w-full bg-gray-700/50 border border-gray-600 rounded-lg py-2 sm:py-3 px-3 sm:px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300 text-sm sm:text-base group ${uploadDisabled ? 'opacity-70 cursor-not-allowed' : ''}`}
         >
           <Upload size={18} className="text-emerald-400 group-hover:scale-110 transition-transform duration-300" />
           {paymentProof ? (
@@ -634,6 +741,13 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
             'Upload QR Code Screenshot'
           )}
         </label>
+        
+        {uploadDisabled && (
+          <div className="mt-2 bg-amber-500/10 rounded-lg p-3 border border-amber-500/30 text-xs text-amber-400 flex items-center">
+            <AlertCircle size={16} className="mr-2 shrink-0" /> 
+            <span>Storage uploads may be unavailable. Please contact support or try again later.</span>
+          </div>
+        )}
         
         {paymentProofPreview && (
           <div className="mt-3 relative animate-fadeIn">

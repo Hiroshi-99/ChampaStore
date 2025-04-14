@@ -403,19 +403,44 @@ const ImageManager: React.FC = () => {
       const fileName = `${imageType}_${timestamp}.${fileExt}`;
       const filePath = `images/${fileName}`;
       
-      // Upload to Supabase storage
-      const { error: uploadError } = await supabase.storage
-        .from('public')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-        
-      if (uploadError) throw uploadError;
+      // Try uploading to various possible bucket names
+      let uploadError;
+      let bucketName;
       
-      // Get the public URL
+      // List of possible bucket names to try
+      const possibleBuckets = ['payment-proofs', 'uploads', 'media', 'public', 'images', 'storage'];
+      
+      for (const bucket of possibleBuckets) {
+        try {
+          const result = await supabase.storage
+            .from(bucket)
+            .upload(filePath, file, {
+              cacheControl: '3600',
+              upsert: false
+            });
+            
+          if (!result.error) {
+            bucketName = bucket;
+            uploadError = null;
+            console.log(`Upload successful to bucket: ${bucket}`);
+            break;
+          }
+          
+          uploadError = result.error;
+        } catch (err) {
+          console.log(`Failed to upload to bucket ${bucket}:`, err);
+          uploadError = err;
+        }
+      }
+      
+      if (uploadError || !bucketName) {
+        console.error('All bucket attempts failed:', uploadError);
+        throw new Error(`Failed to upload image: ${uploadError ? (uploadError as any).message || 'Unknown error' : 'No valid storage bucket found'}`);
+      }
+      
+      // Get the public URL from the successful bucket
       const { data: urlData } = supabase.storage
-        .from('public')
+        .from(bucketName)
         .getPublicUrl(filePath);
         
       if (!urlData || !urlData.publicUrl) {
@@ -423,6 +448,7 @@ const ImageManager: React.FC = () => {
       }
       
       const imageUrl = urlData.publicUrl;
+      console.log(`Image uploaded successfully to ${bucketName}:`, imageUrl);
       
       // Update the appropriate state based on image type
       switch (imageType) {
