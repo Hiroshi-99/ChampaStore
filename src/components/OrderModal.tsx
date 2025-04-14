@@ -964,9 +964,6 @@ export const OrderModal: React.FC<OrderModalProps> = React.memo(({
               <VisuallyHidden.Root>Complete Your Order</VisuallyHidden.Root>
             </DialogTitle>
             
-            <DialogDescription id="order-form-description">
-              Order form for purchasing a rank on the Champa Store. Complete all required fields to submit your order.
-            </DialogDescription>
             
             <button
               onClick={onClose}
