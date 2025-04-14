@@ -1,0 +1,7 @@
+/*
+  X-Frame-Options: DENY
+  X-XSS-Protection: 1; mode=block
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer-when-downgrade
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://plausible.io; style-src 'self' 'unsafe-inline'; img-src 'self' https://i.imgur.com https://cdn.discordapp.com data: blob:; font-src 'self'; connect-src 'self' https://*.supabase.co https://plausible.io; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none' 

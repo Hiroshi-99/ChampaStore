@@ -256,7 +256,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     return true;
   }, []);
 
-  // Enhanced file upload handler with preview and validation
+  // Enhanced file upload handler with data URL preview instead of blob URL to fix CSP issues
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -275,12 +275,18 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     
     setPaymentProof(file);
     
-    // Create preview URL
-    const previewUrl = URL.createObjectURL(file);
-    setPaymentProofPreview(previewUrl);
-    
-    // Clean up preview URL when component unmounts
-    return () => URL.revokeObjectURL(previewUrl);
+    // Create a data URL instead of a blob URL to avoid CSP issues
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setPaymentProofPreview(event.target.result as string);
+      }
+    };
+    reader.onerror = () => {
+      toast.error('Failed to preview image');
+      setPaymentProofPreview(null);
+    };
+    reader.readAsDataURL(file);
   }, []);
 
   const sendToDiscord = async (orderData: any, paymentProofUrl: string) => {
@@ -595,12 +601,10 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
     }, 500);
   };
 
-  // Cleanup function for any created object URLs
+  // Cleanup is not needed for data URLs as they are not browser resources like blob URLs
   useEffect(() => {
     return () => {
-      if (paymentProofPreview) {
-        URL.revokeObjectURL(paymentProofPreview);
-      }
+      // No cleanup needed for data URLs
     };
   }, [paymentProofPreview]);
 

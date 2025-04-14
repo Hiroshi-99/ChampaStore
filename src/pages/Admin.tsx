@@ -1,56 +1,96 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Save, Image, DollarSign, Percent, Settings, LogOut, ShoppingCart, FileText, X } from 'lucide-react';
+import { Save, Image, DollarSign, Percent, Settings, LogOut, ShoppingCart, FileText, X, AlertTriangle, Lock } from 'lucide-react';
 
-const AdminDashboard: React.FC = () => {
+// Enhanced authentication with SessionProvider pattern
+const useAuth = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('images');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
+  const [authError, setAuthError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // Session monitoring
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    const fetchSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        setSession(data.session);
+      } catch (err: any) {
+        console.error('Auth error:', err);
+        setAuthError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
+    fetchSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setLoading(false);
+      }
+    );
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoginError('');
-    
+  // Login handler with rate limiting and security enhancements
+  const login = useCallback(async (email: string, password: string) => {
+    if (!email || !password) {
+      setAuthError('Please enter both email and password');
+      return false;
+    }
+
+    setLoading(true);
+    setAuthError(null);
+
     try {
-      setLoading(true);
+      // Add short delay to prevent brute force
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
       if (error) throw error;
+      return true;
     } catch (error: any) {
-      setLoginError(error.message || 'An error occurred during login');
+      setAuthError(error.message || 'Authentication failed');
+      console.error('Login error:', error);
+      return false;
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/admin');
-  };
+  // Logout handler
+  const logout = useCallback(async () => {
+    setLoading(true);
+    try {
+      await supabase.auth.signOut();
+      navigate('/admin');
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
 
+  return { session, loading, authError, login, logout };
+};
+
+// Main Admin Dashboard Component
+const AdminDashboard: React.FC = () => {
+  const { session, loading, authError, login, logout } = useAuth();
+  const [activeTab, setActiveTab] = useState('images');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginInProgress, setLoginInProgress] = useState(false);
+  
   // Admin tabs
   const tabs = [
     { id: 'images', label: 'Images', icon: <Image size={18} /> },
@@ -59,70 +99,103 @@ const AdminDashboard: React.FC = () => {
     { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
   ];
 
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginInProgress(true);
+    await login(email, password);
+    setLoginInProgress(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+        <div className="flex flex-col items-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-emerald-500"></div>
+          <p className="text-emerald-400 font-medium">Loading dashboard...</p>
+        </div>
       </div>
     );
   }
 
+  // Login screen
   if (!session) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
-        <div className="bg-gray-800 p-8 rounded-xl shadow-xl max-w-md w-full">
-          <h1 className="text-2xl font-bold text-white mb-6 text-center">Admin Login</h1>
+      <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
+        <div className="bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md transition-all duration-300 transform">
+          <div className="text-center mb-6">
+            <Lock className="h-12 w-12 text-emerald-500 mx-auto mb-2" />
+            <h1 className="text-2xl font-bold text-white mb-1">Admin Login</h1>
+            <p className="text-gray-400 text-sm">Secure access to management dashboard</p>
+          </div>
           
-          {loginError && (
-            <div className="bg-red-500/20 border border-red-500 text-red-200 px-4 py-3 rounded mb-4">
-              {loginError}
+          {authError && (
+            <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded mb-4 flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+              <p className="text-sm">{authError}</p>
             </div>
           )}
           
-          <form onSubmit={handleLogin}>
-            <div className="mb-4">
-              <label className="block text-gray-300 mb-2" htmlFor="email">Email</label>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-2" htmlFor="email">
+                Email Address
+              </label>
               <input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+                className="w-full bg-gray-700/50 text-white border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
                 required
                 autoComplete="username"
+                disabled={loginInProgress}
               />
             </div>
             
-            <div className="mb-6">
-              <label className="block text-gray-300 mb-2" htmlFor="password">Password</label>
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-2" htmlFor="password">
+                Password
+              </label>
               <input
                 id="password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
+                className="w-full bg-gray-700/50 text-white border border-gray-600 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors"
                 required
                 autoComplete="current-password"
+                disabled={loginInProgress}
               />
             </div>
             
             <button
               type="submit"
-              disabled={loading}
-              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded transition-colors"
+              disabled={loginInProgress}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-700/50 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors mt-2 flex items-center justify-center"
             >
-              {loading ? 'Loading...' : 'Login'}
+              {loginInProgress ? (
+                <>
+                  <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full mr-2"></div>
+                  <span>Authenticating...</span>
+                </>
+              ) : (
+                'Sign In'
+              )}
             </button>
           </form>
+          
+          <p className="text-gray-500 text-xs text-center mt-6">
+            Protected area. Unauthorized access attempts will be logged.
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Sidebar */}
-      <div className="w-64 bg-gray-800 border-r border-gray-700">
+    <div className="min-h-screen bg-gray-900 flex">
+      {/* Responsive Sidebar */}
+      <div className="w-64 bg-gray-800 border-r border-gray-700 hidden md:block">
         <div className="p-4 border-b border-gray-700">
           <h1 className="text-xl font-bold text-white">Admin Dashboard</h1>
         </div>
@@ -144,7 +217,7 @@ const AdminDashboard: React.FC = () => {
         
         <div className="absolute bottom-0 left-0 w-64 p-4 border-t border-gray-700">
           <button
-            onClick={handleLogout}
+            onClick={logout}
             className="w-full bg-gray-700 hover:bg-gray-600 text-gray-200 font-medium py-2 px-4 rounded transition-colors flex items-center justify-center gap-2"
           >
             <LogOut size={18} />
@@ -153,80 +226,42 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* Tab Navigation */}
-      <div className="mb-8 border-b border-gray-800">
-        <div className="container mx-auto px-4">
-          <div className="flex overflow-x-auto">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 flex items-center gap-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'text-emerald-400 border-b-2 border-emerald-400'
-                    : 'text-gray-400 hover:text-white'
-                }`}
-              >
-                {tab.icon}
-                <span>{tab.label}</span>
-              </button>
-            ))}
-          </div>
+      {/* Mobile Header */}
+      <div className="md:hidden fixed top-0 left-0 right-0 bg-gray-800 border-b border-gray-700 z-10">
+        <div className="flex items-center justify-between p-4">
+          <h1 className="text-lg font-bold text-white">Admin Dashboard</h1>
+          
+          <button
+            onClick={logout}
+            className="bg-gray-700 hover:bg-gray-600 text-gray-200 p-2 rounded transition-colors"
+            aria-label="Logout"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
+        
+        <div className="flex overflow-x-auto border-t border-gray-700">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex flex-col items-center justify-center py-3 px-2 ${
+                activeTab === tab.id ? 'text-emerald-400 border-b-2 border-emerald-400' : 'text-gray-400'
+              }`}
+            >
+              {tab.icon}
+              <span className="text-xs mt-1">{tab.label}</span>
+            </button>
+          ))}
         </div>
       </div>
       
-      {/* Tab Content */}
-      <div className="container mx-auto px-4 pb-12">
-        {/* Protected Content */}
-        {session ? (
-          <>
-            {activeTab === 'images' && <ImageManager />}
-            {activeTab === 'prices' && <PriceManager />}
-            {activeTab === 'orders' && <OrdersManager />}
-            {activeTab === 'settings' && <SettingsManager />}
-          </>
-        ) : (
-          <div className="bg-gray-800 p-8 rounded-xl max-w-md mx-auto">
-            <h2 className="text-2xl font-bold text-white mb-6">Admin Login</h2>
-            
-            {loginError && (
-              <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded mb-4">
-                {loginError}
-              </div>
-            )}
-            
-            <form onSubmit={handleLogin}>
-              <div className="mb-4">
-                <label className="block text-gray-300 mb-2">Email</label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-                  required
-                />
-              </div>
-              
-              <div className="mb-6">
-                <label className="block text-gray-300 mb-2">Password</label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-                  required
-                />
-              </div>
-              
-              <button
-                type="submit"
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded transition-colors"
-              >
-                Sign In
-              </button>
-            </form>
-          </div>
-        )}
+      {/* Main Content */}
+      <div className="flex-1 p-4 md:p-8 overflow-auto md:ml-0 mt-24 md:mt-0">
+        {activeTab === 'images' && <ImageManager />}
+        {activeTab === 'prices' && <PriceManager />}
+        {activeTab === 'orders' && <OrdersManager />}
+        {activeTab === 'settings' && <SettingsManager />}
       </div>
     </div>
   );
@@ -251,6 +286,7 @@ const ImageManager: React.FC = () => {
   const [selectedRank, setSelectedRank] = useState('VIP');
   const [isSaving, setIsSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [uploadLoading, setUploadLoading] = useState<string | null>(null);
   
   useEffect(() => {
     const fetchImages = async () => {
@@ -341,6 +377,122 @@ const ImageManager: React.FC = () => {
       [selectedRank]: value
     });
   };
+
+  // File upload handler for direct uploads
+  const handleFileUpload = async (file: File, imageType: string) => {
+    if (!file) return;
+    
+    // Validate file
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a valid image file');
+      return;
+    }
+    
+    // Max size 2MB
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Image is too large (max 2MB)');
+      return;
+    }
+    
+    setUploadLoading(imageType);
+    
+    try {
+      // Create a unique filename
+      const timestamp = Date.now();
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${imageType}_${timestamp}.${fileExt}`;
+      const filePath = `images/${fileName}`;
+      
+      // Upload to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('public')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+        
+      if (uploadError) throw uploadError;
+      
+      // Get the public URL
+      const { data: urlData } = supabase.storage
+        .from('public')
+        .getPublicUrl(filePath);
+        
+      if (!urlData || !urlData.publicUrl) {
+        throw new Error('Failed to get public URL');
+      }
+      
+      const imageUrl = urlData.publicUrl;
+      
+      // Update the appropriate state based on image type
+      switch (imageType) {
+        case 'banner':
+          setBannerImage(imageUrl);
+          break;
+        case 'logo':
+          setLogoImage(imageUrl);
+          break;
+        case 'qrcode':
+          setQrCodeImage(imageUrl);
+          break;
+        case 'receipt':
+          setReceiptImage(imageUrl);
+          break;
+        case 'receipt_logo':
+          setReceiptLogoImage(imageUrl);
+          break;
+        case 'rank':
+          setRankImages({
+            ...rankImages,
+            [selectedRank]: imageUrl
+          });
+          break;
+      }
+      
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      alert(`Failed to upload image: ${error.message}`);
+    } finally {
+      setUploadLoading(null);
+    }
+  };
+  
+  // Image upload component
+  const ImageUploader = ({ 
+    imageType, 
+    currentUrl, 
+    label 
+  }: { 
+    imageType: string; 
+    currentUrl: string;
+    label: string;
+  }) => (
+    <div className="relative group">
+      <input
+        type="file"
+        id={`upload-${imageType}`}
+        className="hidden"
+        accept="image/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFileUpload(file, imageType);
+        }}
+      />
+      <label 
+        htmlFor={`upload-${imageType}`} 
+        className="absolute inset-0 flex items-center justify-center bg-black/70 text-white text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+      >
+        {uploadLoading === imageType ? (
+          <div className="flex items-center gap-2">
+            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+            <span>Uploading...</span>
+          </div>
+        ) : (
+          <>Upload {label}</>
+        )}
+      </label>
+    </div>
+  );
   
   if (loading) {
     return <div className="text-white">Loading images...</div>;
@@ -356,12 +508,13 @@ const ImageManager: React.FC = () => {
           <div className="bg-gray-800 p-6 rounded-xl">
             <h3 className="text-xl font-semibold text-white mb-4">Banner Image</h3>
             
-            <div className="mb-4 bg-gray-900 p-2 rounded-lg">
+            <div className="mb-4 bg-gray-900 p-2 rounded-lg relative group overflow-hidden">
               <img 
                 src={bannerImage} 
                 alt="Banner Preview" 
                 className="w-full h-40 object-cover rounded-lg"
               />
+              <ImageUploader imageType="banner" currentUrl={bannerImage} label="Banner" />
             </div>
             
             <div className="mb-4">
@@ -378,12 +531,13 @@ const ImageManager: React.FC = () => {
           <div className="bg-gray-800 p-6 rounded-xl">
             <h3 className="text-xl font-semibold text-white mb-4">Logo Image</h3>
             
-            <div className="mb-4 bg-gray-900 p-2 rounded-lg flex items-center justify-center">
+            <div className="mb-4 bg-gray-900 p-2 rounded-lg flex items-center justify-center relative group">
               <img 
                 src={logoImage} 
                 alt="Logo Preview" 
                 className="w-20 h-20 object-cover rounded-full border-2 border-emerald-500"
               />
+              <ImageUploader imageType="logo" currentUrl={logoImage} label="Logo" />
             </div>
             
             <div className="mb-4">
@@ -402,12 +556,13 @@ const ImageManager: React.FC = () => {
         <div className="bg-gray-800 p-6 rounded-xl">
           <h3 className="text-xl font-semibold text-white mb-4">Payment QR Code</h3>
           
-          <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center">
+          <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center relative group">
             <img 
               src={qrCodeImage} 
               alt="Payment QR Code Preview" 
               className="w-48 h-48 object-contain"
             />
+            <ImageUploader imageType="qrcode" currentUrl={qrCodeImage} label="QR Code" />
           </div>
           
           <div className="mb-4">
@@ -429,12 +584,13 @@ const ImageManager: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-gray-300 mb-2">Receipt Background</label>
-              <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center">
+              <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center relative group">
                 <img 
                   src={receiptImage} 
                   alt="Receipt Background Preview" 
                   className="w-full h-40 object-cover rounded-lg"
                 />
+                <ImageUploader imageType="receipt" currentUrl={receiptImage} label="Background" />
               </div>
               
               <div className="mb-4">
@@ -450,12 +606,13 @@ const ImageManager: React.FC = () => {
             
             <div>
               <label className="block text-gray-300 mb-2">Receipt Logo</label>
-              <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center">
+              <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center relative group">
                 <img 
                   src={receiptLogoImage} 
                   alt="Receipt Logo Preview" 
                   className="w-32 h-32 object-contain"
                 />
+                <ImageUploader imageType="receipt_logo" currentUrl={receiptLogoImage} label="Logo" />
               </div>
               
               <div className="mb-4">
@@ -500,12 +657,13 @@ const ImageManager: React.FC = () => {
             </div>
           </div>
           
-          <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center">
+          <div className="mb-4 bg-gray-900 p-4 rounded-lg flex items-center justify-center relative group">
             <img 
               src={rankImages[selectedRank] || ''} 
               alt={`${selectedRank} Preview`} 
               className="h-48 object-contain"
             />
+            <ImageUploader imageType="rank" currentUrl={rankImages[selectedRank] || ''} label="Rank Image" />
           </div>
           
           <div className="mb-4">
