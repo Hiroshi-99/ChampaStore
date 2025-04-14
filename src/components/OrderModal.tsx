@@ -404,8 +404,7 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         price: selectedRankOption.price,
         payment_proof: filePath, // Store the path only in the database
         created_at: new Date().toISOString(),
-        status: 'pending', // Ensure status field is included
-        client_info: btoa(navigator.userAgent.substring(0, 50)) // Store encoded client info for security tracking
+        status: 'pending' // Ensure status field is included
       };
 
       console.log('Sending order data:', orderData);
