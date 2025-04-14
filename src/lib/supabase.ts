@@ -33,7 +33,7 @@ export async function checkSupabaseBuckets() {
 }
 
 // Attempt to create a storage bucket if none exist
-export async function createStorageBucket(bucketName = ']') {
+export async function createStorageBucket(bucketName = 'storage') {
   try {
     // First check if bucket already exists
     const { data: buckets, error: listError } = await supabase.storage.listBuckets();
@@ -74,19 +74,32 @@ async function initializeStorage() {
   const hasBuckets = await checkSupabaseBuckets();
   
   if (!hasBuckets) {
-    console.warn('⚠️ No Supabase storage buckets detected. Attempting to create one...');
+    console.warn('⚠️ No Supabase storage buckets detected. Attempting to create some...');
     
-    // Try to create the default buckets
-    const storageCreated = await createStorageBucket('storage');
-    const publicCreated = !storageCreated ? await createStorageBucket('public') : false;
+    // Define possible bucket names to try
+    const bucketNames = ['storage', 'public', 'images', 'uploads', 'media', 'payment-proofs'];
+    let successCount = 0;
     
-    if (storageCreated || publicCreated) {
-      console.info('✅ Successfully created a storage bucket.');
+    // Try to create multiple buckets (we'll try all of them to maximize chances)
+    for (const bucket of bucketNames) {
+      const created = await createStorageBucket(bucket);
+      if (created) {
+        successCount++;
+        console.info(`✅ Successfully created '${bucket}' bucket.`);
+      }
+    }
+    
+    if (successCount > 0) {
+      console.info(`✅ Created ${successCount} storage buckets successfully.`);
+      return true;
     } else {
-      console.warn('⚠️ Could not create storage buckets. File uploads will fall back to data URLs.');
+      console.warn('⚠️ Could not create any storage buckets. File uploads will fall back to data URLs.');
       console.info('💡 Please create a bucket manually in your Supabase dashboard or check your permissions.');
+      return false;
     }
   }
+  
+  return true;
 }
 
 // Auto-initialize storage when in development mode

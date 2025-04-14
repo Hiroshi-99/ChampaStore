@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { X, Upload, Info, CreditCard, User, Shield, Check, AlertCircle } from 'lucide-react';
-import { supabase, checkSupabaseBuckets } from '../lib/supabase';
+import { supabase, checkSupabaseBuckets, createStorageBucket } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { sanitizeInput, sanitizeDiscordContent } from '../utils/sanitize';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "../ui/dialog";
@@ -133,13 +133,22 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
           try {
             const hasBuckets = await checkSupabaseBuckets();
             if (!hasBuckets) {
-              setUploadDisabled(true);
-              console.warn('Storage uploads likely to fail - no buckets available');
+              // Try to create buckets as a last resort
+              const bucketsCreated = await createStorageBucket('payment-proofs');
+              
+              if (!bucketsCreated) {
+                console.warn('Storage uploads likely to fail - no buckets available');
+                setUploadDisabled(true);
+              } else {
+                console.log('Created storage buckets successfully!');
+                setUploadDisabled(false);
+              }
             } else {
               setUploadDisabled(false);
             }
           } catch (err) {
             console.error('Error checking storage buckets:', err);
+            setUploadDisabled(false); // Still allow uploads, we'll use the fallback
           }
         }
         
@@ -731,11 +740,10 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
           className="hidden"
           id="payment-proof"
           required
-          disabled={uploadDisabled}
         />
         <label
-          htmlFor={!uploadDisabled ? "payment-proof" : undefined}
-          className={`w-full bg-gray-700/50 border border-gray-600/80 rounded-lg py-3 px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300 text-sm sm:text-base group ${uploadDisabled ? 'opacity-70 cursor-not-allowed' : ''}`}
+          htmlFor="payment-proof"
+          className="w-full bg-gray-700/50 border border-gray-600/80 rounded-lg py-3 px-4 text-white flex items-center justify-center gap-2 cursor-pointer hover:bg-gray-600/50 transition duration-300 text-sm sm:text-base group"
         >
           <Upload size={18} className="text-emerald-400 group-hover:scale-110 transition-transform duration-300" />
           {paymentProof ? (
@@ -746,9 +754,9 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
         </label>
         
         {uploadDisabled && (
-          <div className="mt-3 bg-amber-500/10 rounded-lg p-3 border border-amber-500/30 text-xs text-amber-400 flex items-center">
+          <div className="mt-3 bg-amber-500/10 rounded-lg p-3 border border-amber-500/30 text-xs text-amber-300 flex items-center">
             <AlertCircle size={16} className="mr-2 shrink-0" /> 
-            <span>Storage uploads may be unavailable. Please contact support or try again later.</span>
+            <span>Storage uploads are currently using a fallback method. Your order will still be processed normally.</span>
           </div>
         )}
         
