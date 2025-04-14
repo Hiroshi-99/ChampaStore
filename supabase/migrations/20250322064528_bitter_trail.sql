@@ -39,15 +39,21 @@ ON CONFLICT (id) DO NOTHING;
 -- Enable RLS
 ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
--- Allow authenticated users to upload files
-CREATE POLICY "Authenticated users can upload payment proofs"
+-- Remove old policy if it exists
+DROP POLICY IF EXISTS "Authenticated users can upload payment proofs" ON storage.objects;
+
+-- Allow both anonymous and authenticated users to upload files
+CREATE POLICY "Anyone can upload payment proofs"
 ON storage.objects
 FOR INSERT
-TO authenticated
+TO public
 WITH CHECK (
   bucket_id = 'payment-proofs'
-  AND auth.uid() = owner
+  -- No owner check as anonymous users don't have auth.uid()
 );
+
+-- Remove old policy if it exists
+DROP POLICY IF EXISTS "Payment proofs are publicly accessible" ON storage.objects;
 
 -- Allow public access to view payment proofs
 CREATE POLICY "Payment proofs are publicly accessible"

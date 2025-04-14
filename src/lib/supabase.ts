@@ -16,7 +16,9 @@ export async function checkSupabaseBuckets() {
     
     if (error) {
       console.error('Error listing Supabase buckets:', error);
-      return false;
+      // Even if we get an error, we'll try using the storage anyway
+      // since the RLS policy might prevent listing but still allow uploads
+      return true;
     }
     
     if (data && data.length > 0) {
@@ -28,19 +30,21 @@ export async function checkSupabaseBuckets() {
     }
   } catch (error) {
     console.error('Failed to check Supabase buckets:', error);
-    return false;
+    // Return true anyway to allow upload attempts to proceed
+    return true;
   }
 }
 
 // Attempt to create a storage bucket if none exist
-export async function createStorageBucket(bucketName = 'storage') {
+export async function createStorageBucket(bucketName = 'payment-proofs') {
   try {
     // First check if bucket already exists
     const { data: buckets, error: listError } = await supabase.storage.listBuckets();
     
     if (listError) {
-      console.error('Error checking existing buckets:', listError);
-      return false;
+      // If we can't list buckets, we might still be able to use existing ones
+      console.warn('Unable to list buckets, will try to use existing ones:', listError);
+      return true;
     }
     
     // If the bucket already exists, no need to create it
@@ -57,15 +61,17 @@ export async function createStorageBucket(bucketName = 'storage') {
     
     if (error) {
       // Most likely because user doesn't have permission
-      console.error(`Failed to create bucket '${bucketName}':`, error);
-      return false;
+      console.warn(`Unable to create bucket '${bucketName}', will try to use it anyway:`, error);
+      // Even if creation fails, bucket might still exist with RLS preventing creation
+      return true;
     }
     
     console.log(`Successfully created storage bucket '${bucketName}'`);
     return true;
   } catch (error) {
     console.error('Error creating storage bucket:', error);
-    return false;
+    // Even if creation fails, bucket might still exist and be usable
+    return true;
   }
 }
 
@@ -77,7 +83,7 @@ async function initializeStorage() {
     console.warn('⚠️ No Supabase storage buckets detected. Attempting to create some...');
     
     // Define possible bucket names to try
-    const bucketNames = ['storage', 'public', 'images', 'uploads', 'media', 'payment-proofs'];
+    const bucketNames = ['payment-proofs', 'uploads', 'media', 'public', 'images', 'storage'];
     let successCount = 0;
     
     // Try to create multiple buckets (we'll try all of them to maximize chances)

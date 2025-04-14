@@ -216,7 +216,7 @@ const Store: React.FC = () => {
               width={40}
               height={40}
               loading="eager"
-              fetchPriority="high"
+              {...{'fetchpriority': 'high'} as any}
             />
             <h1 className="text-white text-xl sm:text-2xl font-bold tracking-wider">{config.site_title}</h1>
           </div>
@@ -249,7 +249,7 @@ const Store: React.FC = () => {
                 alt="Champa Banner"
                 className="w-full h-full object-cover"
                 loading="eager"
-                fetchPriority="high"
+                {...{'fetchpriority': 'high'} as any}
                 width={1200}
                 height={400}
               />

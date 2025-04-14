@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { RouterProvider, createBrowserRouter } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Store from './pages/Store';
 
@@ -13,21 +13,41 @@ const LazyLoading = () => (
   </div>
 );
 
+// Create router with future flags enabled
+const router = createBrowserRouter(
+  [
+    { path: "/", element: <Store /> },
+    { 
+      path: "/admin", 
+      element: (
+        <Suspense fallback={<LazyLoading />}>
+          <AdminDashboard />
+        </Suspense>
+      )
+    },
+    { path: "*", element: <Navigate to="/" /> }
+  ],
+  {
+    // Enable React Router v7 behavior for relative paths in splat routes
+    future: {
+      v7_relativeSplatPath: true
+    }
+  }
+);
+
+// Import Navigate separately to avoid any issues
+import { Navigate } from 'react-router-dom';
+
 function App() {
   return (
     <>
       <Toaster position="top-center" />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Store />} />
-          <Route path="/admin" element={
-            <Suspense fallback={<LazyLoading />}>
-              <AdminDashboard />
-            </Suspense>
-          } />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
+      <RouterProvider 
+        router={router} 
+        future={{
+          v7_startTransition: true
+        }}
+      />
     </>
   );
 }
