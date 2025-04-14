@@ -3,6 +3,7 @@ import { X, Check, User, CreditCard, ImageIcon, ZoomIn, Eye, Shield, Printer } f
 import { useReactToPrint } from 'react-to-print';
 import toast from 'react-hot-toast';
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
+import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { Button } from "../ui/button";
 import { sanitizeInput } from '../utils/sanitize';
 
@@ -423,8 +424,8 @@ export function ReceiptModal({ isOpen, onClose, orderData }: ReceiptModalProps) 
         className={`bg-gray-800/95 p-4 sm:p-6 md:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto border-gray-700 transform transition-all duration-300 ${fadeIn ? 'opacity-100' : 'opacity-0'}`}
         aria-describedby="receipt-description"
       >
-        <DialogTitle className="sr-only" id="receipt-title">
-          Purchase Receipt
+        <DialogTitle>
+          <VisuallyHidden.Root>Purchase Receipt</VisuallyHidden.Root>
         </DialogTitle>
         
         <p id="receipt-description" className="sr-only">

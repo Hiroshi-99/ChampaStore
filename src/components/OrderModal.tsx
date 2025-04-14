@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 import { sanitizeInput, sanitizeDiscordContent } from '../utils/sanitize';
 import { Dialog, DialogContent, DialogTitle } from "../ui/dialog";
+import * as VisuallyHidden from '@radix-ui/react-visually-hidden';
 import { ReceiptModal } from './ReceiptModal';
 
 interface OrderModalProps {
@@ -622,8 +623,8 @@ export default function OrderModal({ isOpen, onClose }: OrderModalProps) {
             className="bg-gray-800/95 rounded-2xl p-4 sm:p-6 md:p-8 w-full max-w-2xl m-2 sm:m-4 relative max-h-[90vh] overflow-y-auto"
             aria-describedby="order-form-description"
           >
-            <DialogTitle className="sr-only" id="order-form-title">
-              Complete Your Order
+            <DialogTitle>
+              <VisuallyHidden.Root>Complete Your Order</VisuallyHidden.Root>
             </DialogTitle>
             
             <p id="order-form-description" className="sr-only">
