@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { Save, Image, DollarSign, Percent, Settings, LogOut, ShoppingCart, FileText, X, AlertTriangle, Lock, Upload, Shield, Info } from 'lucide-react';
@@ -92,7 +92,7 @@ const useAuth = () => {
   }, []);
 
   // Get client IP
-  const getClientIP = async () => {
+  const getClientIP = useCallback(async () => {
     try {
       const response = await fetch('https://api.ipify.org?format=json');
       const data = await response.json();
@@ -100,7 +100,7 @@ const useAuth = () => {
     } catch (error) {
       return 'unknown';
     }
-  };
+  }, []);
 
   // Login handler with rate limiting and security enhancements
   const login = useCallback(async (email: string, password: string) => {
@@ -160,7 +160,7 @@ const useAuth = () => {
     } finally {
       setLoading(false);
     }
-  }, [loginAttempts]);
+  }, [loginAttempts, getClientIP]);
 
   // Logout handler
   const logout = useCallback(async () => {
@@ -279,6 +279,40 @@ const SaveButton: React.FC<{
     </button>
   );
 };
+
+// Image uploader component for reuse
+interface ImageUploaderProps {
+  imageType: string;
+  currentUrl: string;
+  label: string;
+  onUpload: (file: File, type: string) => void;
+  isUploading: boolean;
+}
+
+const ImageUploader = React.memo(({ 
+  imageType, 
+  currentUrl, 
+  label,
+  onUpload,
+  isUploading
+}: ImageUploaderProps) => (
+  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/60 rounded-lg backdrop-blur-sm">
+    <label className="cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors flex items-center gap-2">
+      <Upload size={14} />
+      Update {label}
+      <input
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onUpload(file, imageType);
+        }}
+        disabled={isUploading}
+      />
+    </label>
+  </div>
+));
 
 // Main Admin Dashboard Component
 const AdminDashboard: React.FC = () => {
@@ -479,7 +513,50 @@ const ImageManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [uploadLoading, setUploadLoading] = useState<string | null>(null);
   
+  // Memoize selected rank image
+  const selectedRankImage = useMemo(() => 
+    rankImages[selectedRank] || rankImages['VIP'],
+    [rankImages, selectedRank]
+  );
+
+  // Memoize rank options for dropdown
+  const rankOptions = useMemo(() => 
+    Object.keys(rankImages).map(rank => ({
+      value: rank,
+      label: rank
+    })),
+    [rankImages]
+  );
+
+  // Preload images when component mounts
   useEffect(() => {
+    const imagesToPreload = [
+      bannerImage,
+      logoImage,
+      qrCodeImage,
+      receiptImage,
+      receiptLogoImage,
+      ...Object.values(rankImages)
+    ].filter(Boolean);
+
+    const imageLoaders = imagesToPreload.map(url => {
+      const img = document.createElement('img');
+      img.src = url;
+      return img;
+    });
+
+    return () => {
+      // Cleanup image loaders
+      imageLoaders.forEach(img => {
+        img.onload = null;
+        img.onerror = null;
+      });
+    };
+  }, [bannerImage, logoImage, qrCodeImage, receiptImage, receiptLogoImage, rankImages]);
+
+  // Fetch images from database
+  useEffect(() => {
+    let mounted = true;
     const fetchImages = async () => {
       try {
         // Fetch site configuration
@@ -490,7 +567,7 @@ const ImageManager: React.FC = () => {
           
         if (configError) throw configError;
         
-        if (configData) {
+        if (configData && mounted) {
           const imagesObj = configData.reduce((acc: any, item: any) => {
             acc[item.key] = item.value;
             return acc;
@@ -510,7 +587,7 @@ const ImageManager: React.FC = () => {
           
         if (rankError) throw rankError;
         
-        if (rankData && rankData.length > 0) {
+        if (rankData && rankData.length > 0 && mounted) {
           const rankImagesObj = rankData.reduce((acc: {[key: string]: string}, item: any) => {
             if (item.name && item.image_url) {
               acc[item.name] = item.image_url;
@@ -523,14 +600,21 @@ const ImageManager: React.FC = () => {
       } catch (error) {
         console.error('Error fetching images:', error);
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
     
     fetchImages();
+    
+    return () => {
+      mounted = false;
+    };
   }, []);
-  
-  const handleSaveImages = async () => {
+
+  // Memoize save handler
+  const handleSaveImages = useCallback(async () => {
     setIsSaving(true);
     
     try {
@@ -560,17 +644,18 @@ const ImageManager: React.FC = () => {
     } finally {
       setIsSaving(false);
     }
-  };
-  
-  const handleRankImageChange = (value: string) => {
-    setRankImages({
-      ...rankImages,
+  }, [bannerImage, logoImage, qrCodeImage, receiptImage, receiptLogoImage, rankImages]);
+
+  // Memoize rank image change handler
+  const handleRankImageChange = useCallback((value: string) => {
+    setRankImages(prev => ({
+      ...prev,
       [selectedRank]: value
-    });
-  };
+    }));
+  }, [selectedRank]);
 
   // File upload handler for direct uploads
-  const handleFileUpload = async (file: File, imageType: string) => {
+  const handleFileUpload = useCallback(async (file: File, imageType: string) => {
     if (!file) return;
     
     // Validate file
@@ -662,48 +747,10 @@ const ImageManager: React.FC = () => {
     } finally {
       setUploadLoading(null);
     }
-  };
-  
-  // Image uploader component for reuse
-  const ImageUploader = ({ 
-    imageType, 
-    currentUrl, 
-    label 
-  }: { 
-    imageType: string; 
-    currentUrl: string;
-    label: string;
-  }) => (
-    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-black/60 rounded-lg backdrop-blur-sm">
-      <label className="cursor-pointer bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors flex items-center gap-2">
-        <Upload size={14} />
-        Update {label}
-        <input
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) handleFileUpload(file, imageType);
-          }}
-          disabled={!!uploadLoading}
-        />
-      </label>
-    </div>
-  );
+  }, [handleRankImageChange]);
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="relative">
-          <div className="w-12 h-12 border-2 border-emerald-500/30 rounded-full"></div>
-          <div className="absolute inset-0 rounded-full border-t-2 border-emerald-500 animate-spin"></div>
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Image size={16} className="text-emerald-400" />
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (
@@ -729,7 +776,13 @@ const ImageManager: React.FC = () => {
                   alt="Logo Preview" 
                   className="h-32 object-contain"
                 />
-                <ImageUploader imageType="logo" currentUrl={logoImage} label="Logo" />
+                <ImageUploader 
+                  imageType="logo" 
+                  currentUrl={logoImage} 
+                  label="Logo"
+                  onUpload={handleFileUpload}
+                  isUploading={!!uploadLoading}
+                />
                 {uploadLoading === 'logo' && (
                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
                     <div className="flex flex-col items-center gap-2">
@@ -759,7 +812,13 @@ const ImageManager: React.FC = () => {
                   alt="Banner Preview" 
                   className="w-full h-32 object-cover rounded-lg"
                 />
-                <ImageUploader imageType="banner" currentUrl={bannerImage} label="Banner" />
+                <ImageUploader 
+                  imageType="banner" 
+                  currentUrl={bannerImage} 
+                  label="Banner"
+                  onUpload={handleFileUpload}
+                  isUploading={!!uploadLoading}
+                />
                 {uploadLoading === 'banner' && (
                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
                     <div className="flex flex-col items-center gap-2">
@@ -792,7 +851,13 @@ const ImageManager: React.FC = () => {
                   className="w-32 h-32 object-contain"
                 />
               </div>
-              <ImageUploader imageType="qr_code" currentUrl={qrCodeImage} label="QR Code" />
+              <ImageUploader 
+                imageType="qr_code" 
+                currentUrl={qrCodeImage} 
+                label="QR Code"
+                onUpload={handleFileUpload}
+                isUploading={!!uploadLoading}
+              />
               {uploadLoading === 'qr_code' && (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
                   <div className="flex flex-col items-center gap-2">
@@ -826,7 +891,13 @@ const ImageManager: React.FC = () => {
                 alt="Receipt Background Preview" 
                 className="w-full h-40 object-cover rounded-lg"
               />
-              <ImageUploader imageType="receipt" currentUrl={receiptImage} label="Background" />
+              <ImageUploader 
+                imageType="receipt" 
+                currentUrl={receiptImage} 
+                label="Background"
+                onUpload={handleFileUpload}
+                isUploading={!!uploadLoading}
+              />
               {uploadLoading === 'receipt' && (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
                   <div className="flex flex-col items-center gap-2">
@@ -856,7 +927,13 @@ const ImageManager: React.FC = () => {
                 alt="Receipt Logo Preview" 
                 className="w-32 h-32 object-contain"
               />
-              <ImageUploader imageType="receipt_logo" currentUrl={receiptLogoImage} label="Logo" />
+              <ImageUploader 
+                imageType="receipt_logo" 
+                currentUrl={receiptLogoImage} 
+                label="Logo"
+                onUpload={handleFileUpload}
+                isUploading={!!uploadLoading}
+              />
               {uploadLoading === 'receipt_logo' && (
                 <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
                   <div className="flex flex-col items-center gap-2">
@@ -915,12 +992,18 @@ const ImageManager: React.FC = () => {
                 <div className="relative group">
                   <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-200"></div>
                   <img 
-                    src={rankImages[selectedRank]} 
+                    src={selectedRankImage} 
                     alt={`${selectedRank} Rank Preview`} 
                     className="h-48 object-contain relative"
                   />
                 </div>
-                <ImageUploader imageType="rank" currentUrl={rankImages[selectedRank]} label="Image" />
+                <ImageUploader 
+                  imageType="rank" 
+                  currentUrl={selectedRankImage} 
+                  label="Image"
+                  onUpload={handleFileUpload}
+                  isUploading={!!uploadLoading}
+                />
                 {uploadLoading === 'rank' && (
                   <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
                     <div className="flex flex-col items-center gap-2">
@@ -935,7 +1018,7 @@ const ImageManager: React.FC = () => {
                 <div className="mb-4">
                   <input
                     type="text"
-                    value={rankImages[selectedRank]}
+                    value={selectedRankImage}
                     onChange={(e) => handleRankImageChange(e.target.value)}
                     className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors text-sm"
                     placeholder="Enter image URL"
