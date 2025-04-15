@@ -157,20 +157,25 @@ const InfoRow = React.memo(({ label, value }: { label: string, value: string }) 
   </div>
 ));
 
-export const OrderModal: React.FC<OrderModalProps> = React.memo(({ 
-  isOpen, 
-  onClose, 
-  title, 
-  name = "", 
-  platform: initialPlatform = "java", 
-  rankName = "", 
-  onConfirm, 
-  isLoading = false 
-}) => {
-  const [username, setUsername] = useState('');
-  const [platform, setPlatform] = useState<"java" | "bedrock">(initialPlatform);
-  const [selectedRank, setSelectedRank] = useState<string>('VIP');
+const OrderModal: React.FC<OrderModalProps> = ({
+  isOpen,
+  onClose,
+  title,
+  name: initialName = '',
+  platform: initialPlatform,
+  rankName: initialRankName,
+  onConfirm,
+  isLoading = false
+}): JSX.Element | null => {
+  const [name, setName] = useState(initialName);
+  const [phone, setPhone] = useState('');
+  const [platform, setPlatform] = useState<"java" | "bedrock" | undefined>(initialPlatform);
+  const [rankName, setRankName] = useState(initialRankName);
   const [paymentProof, setPaymentProof] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [username, setUsername] = useState('');
+  const [selectedRank, setSelectedRank] = useState<string>('VIP');
   const [loading, setLoading] = useState(false);
   const [loadingStage, setLoadingStage] = useState<'uploading' | 'processing' | 'finalizing' | null>(null);
   const [showReceipt, setShowReceipt] = useState(false);
@@ -464,22 +469,21 @@ export const OrderModal: React.FC<OrderModalProps> = React.memo(({
     try {
       const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
       
-      if (bucketsError) throw bucketsError;
+      if (bucketsError) {
+        console.error('Error listing buckets:', bucketsError);
+        throw new Error('Failed to access storage');
+      }
       
       const paymentProofsBucket = buckets?.find(b => b.name === 'payment-proofs');
       
       if (!paymentProofsBucket) {
-        const { error: createError } = await supabase.storage.createBucket('payment-proofs', {
-          public: true,
-          fileSizeLimit: 5242880, // 5MB
-          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp']
-        });
-        
-        if (createError) throw createError;
+        throw new Error('Payment proofs bucket not found. Please contact administrator.');
       }
+
+      return true;
     } catch (error) {
-      console.error('Failed to ensure storage bucket:', error);
-      throw new Error('Failed to initialize storage');
+      console.error('Storage bucket error:', error);
+      throw new Error('Failed to access storage. Please try again later.');
     }
   };
 
@@ -504,26 +508,22 @@ export const OrderModal: React.FC<OrderModalProps> = React.memo(({
         reader.readAsDataURL(paymentProof);
       });
 
-      // Upload to Imgur
-      const response = await fetch('https://api.imgur.com/3/image', {
+      // Upload to our serverless function
+      const response = await fetch('/.netlify/functions/imgur-upload', {
         method: 'POST',
         headers: {
-          'Authorization': `Client-ID ${process.env.NEXT_PUBLIC_IMGUR_CLIENT_ID}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          image: base64,
-          type: 'base64'
-        })
+        body: JSON.stringify({ image: base64 })
       });
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.data.error);
+        throw new Error(error.error || 'Failed to upload image');
       }
 
       const result = await response.json();
-      return result.data.link;
+      return result.url;
     } catch (error) {
       console.error('Failed to upload to Imgur:', error);
       return null;
@@ -609,110 +609,97 @@ export const OrderModal: React.FC<OrderModalProps> = React.memo(({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (loading) return;
-    
-    // Input validation
-    const sanitizedUsername = sanitizeInput(username.trim());
-    if (!sanitizedUsername) {
-      toast.error('Please enter a valid username');
-      return;
-    }
-    
-    if (!selectedRank) {
-      toast.error('Please select a rank');
-      return;
-    }
-    
-    if (!paymentProof) {
-      toast.error('Please upload payment proof');
-      return;
-    }
+    setIsSubmitting(true);
+    setError(null);
+    setLoadingStage('processing');
 
-    setLoading(true);
-    setLoadingStage('uploading');
-    
     try {
-      // Ensure storage bucket exists
-      await ensureStorageBucket();
+      // Validate form fields
+      const validationErrors: string[] = [];
       
-      // Generate unique order ID
-      const orderId = `CS-${Date.now().toString(36).toUpperCase()}`;
+      if (!username?.trim()) {
+        validationErrors.push('Minecraft username is required');
+      }
       
-      // Upload payment proof
-      let paymentProofUrl = '';
-      try {
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('payment-proofs')
-          .upload(`${orderId}/${paymentProof.name}`, paymentProof, {
-            cacheControl: '3600',
-            upsert: false
-          });
-
-        if (uploadError) throw uploadError;
-        
-        // Get public URL
-        const { data: { publicUrl } } = supabase.storage
-          .from('payment-proofs')
-          .getPublicUrl(`${orderId}/${paymentProof.name}`);
-        
-        paymentProofUrl = publicUrl;
-      } catch (error) {
-        console.error('Failed to upload to Supabase:', error);
-        
-        // Fallback to Imgur upload
-        if (!uploadFallbackMode) {
-          setUploadFallbackMode(true);
-          const imgurUrl = await uploadToImgurFallback();
-          if (imgurUrl) {
-            paymentProofUrl = imgurUrl;
-          } else {
-            throw new Error('Failed to upload payment proof');
-          }
-        } else {
-          throw new Error('All upload methods failed');
-        }
+      if (!platform) {
+        validationErrors.push('Platform is required');
+      }
+      
+      if (!selectedRank?.trim()) {
+        validationErrors.push('Rank selection is required');
+      }
+      
+      if (!paymentProof) {
+        validationErrors.push('Payment proof is required');
       }
 
-      setLoadingStage('processing');
-      
-      // Prepare order data
-      const orderData = {
-        orderId,
-        username: sanitizedUsername,
-        platform,
-        rank: selectedRank,
-        price: selectedRankOption.price,
-        created_at: new Date().toISOString(),
-        payment_proof: paymentProofUrl
-      };
+      if (validationErrors.length > 0) {
+        throw new Error(validationErrors.join('. '));
+      }
 
-      // Send Discord notification
-      await sendToDiscord(orderData, paymentProofUrl);
+      // Try to upload to Supabase first
+      let paymentProofUrl: string | null = null;
+      setLoadingStage('uploading');
+      try {
+        await ensureStorageBucket();
+        if (paymentProof) {
+          const fileExt = paymentProof.name.split('.').pop();
+          const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+          
+          const { data, error } = await supabase.storage
+            .from('payment-proofs')
+            .upload(fileName, paymentProof, {
+              cacheControl: '3600',
+              upsert: false
+            });
+
+          if (error) throw error;
+          
+          const { data: { publicUrl } } = supabase.storage
+            .from('payment-proofs')
+            .getPublicUrl(fileName);
+            
+          paymentProofUrl = publicUrl;
+        }
+      } catch (storageError) {
+        console.warn('Supabase storage upload failed, falling back to Imgur:', storageError);
+        // Fall back to Imgur upload
+        paymentProofUrl = await uploadToImgurFallback();
+      }
+
+      if (!paymentProofUrl) {
+        throw new Error('Failed to upload payment proof');
+      }
 
       setLoadingStage('finalizing');
-      
-      // Update receipt data and show receipt
-      setReceiptData(orderData);
-      setOrderComplete(true);
-      setShowReceipt(true);
-      
-      // Call onConfirm callback
-      onConfirm();
-      
-      // Reset form
-      setUsername('');
-      setPlatform(initialPlatform);
-      setSelectedRank('VIP');
-      setPaymentProof(null);
-      setPaymentProofPreview(null);
-      
+      // Create order data
+      const orderData = {
+        customer_name: username.trim(),
+        customer_phone: phone?.trim() || '', // Make phone optional
+        platform,
+        rank_name: selectedRank,
+        payment_proof_url: paymentProofUrl,
+        status: 'pending',
+        created_at: new Date().toISOString()
+      };
+
+      // Send to Discord
+      await sendToDiscord(orderData, paymentProofUrl);
+
+      // Show success message
       toast.success('Order submitted successfully!');
-    } catch (error) {
-      console.error('Order submission failed:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to submit order');
+      
+      // Set receipt data
+      setReceiptData(orderData);
+      setShowReceipt(true);
+      setOrderComplete(true);
+      
+    } catch (err: any) {
+      console.error('Order submission failed:', err);
+      setError(err.message || 'Failed to submit order. Please try again.');
+      toast.error(err.message || 'Failed to submit order. Please try again.');
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
       setLoadingStage(null);
     }
   };
@@ -781,10 +768,17 @@ export const OrderModal: React.FC<OrderModalProps> = React.memo(({
 
   // Memoized handlers to prevent recreation on every render
   const handleConfirm = useCallback(() => {
-    if (isLoading) return;
+    if (isLoading || isSubmitting) return;
     
     try {
+      // Validate required fields
+      if (!username?.trim() || !platform || !selectedRank || !paymentProof) {
+        throw new Error('Please complete all required fields before confirming');
+      }
+
+      setLoading(true);
       onConfirm();
+      
       // Show confirmation animation
       setShowConfirmation(true);
       
@@ -792,13 +786,25 @@ export const OrderModal: React.FC<OrderModalProps> = React.memo(({
       setTimeout(() => {
         setShowConfirmation(false);
         toast.success("Order confirmed successfully!");
+        
+        // Reset form state
+        setUsername('');
+        setPlatform(undefined);
+        setSelectedRank('VIP');
+        setPaymentProof(null);
+        setPaymentProofPreview(null);
+        setError(null);
+        
         onClose();
       }, 1500);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error confirming order:", error);
-      toast.error("Failed to confirm order. Please try again.");
+      setError(error.message || "Failed to confirm order. Please try again.");
+      toast.error(error.message || "Failed to confirm order. Please try again.");
+    } finally {
+      setLoading(false);
     }
-  }, [onConfirm, onClose, isLoading]);
+  }, [onConfirm, onClose, isLoading, isSubmitting, username, platform, selectedRank, paymentProof]);
 
   // If modal is not open, return null to improve performance
   if (!isOpen) return null;
@@ -1089,7 +1095,7 @@ export const OrderModal: React.FC<OrderModalProps> = React.memo(({
         </Dialog>
       )}
       
-      {/* Receipt Modal - This is rendered at the top level for better visibility */}
+      {/* Receipt Modal */}
       {showReceipt && receiptData && (
         <ReceiptModal 
           isOpen={showReceipt} 
@@ -1121,7 +1127,7 @@ export const OrderModal: React.FC<OrderModalProps> = React.memo(({
       )}
     </>
   );
-});
+};
 
 OrderModal.displayName = "OrderModal";
 

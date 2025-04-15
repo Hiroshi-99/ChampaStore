@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { Save, Image, DollarSign, Percent, Settings, LogOut, ShoppingCart, FileText, X, AlertTriangle, Lock, Upload, Shield, Info } from 'lucide-react';
+import { Save, Image, DollarSign, Percent, Settings, LogOut, ShoppingCart, FileText, X, AlertTriangle, Lock, Upload, Shield, Info, Users } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 // Types
@@ -167,9 +167,9 @@ const useAuth = () => {
     setLoading(true);
     try {
       await supabase.auth.signOut();
-      navigate('/admin');
+      navigate('/');
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error('Error logging out:', error);
     } finally {
       setLoading(false);
     }
@@ -180,6 +180,18 @@ const useAuth = () => {
 
 // Components
 const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [activeTab, setActiveTab] = useState('orders'); // Default to orders tab
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate('/');
+    } catch (error) {
+      console.error('Error logging out:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex">
       {/* Sidebar */}
@@ -195,7 +207,77 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </div>
           </div>
         </div>
-        {children}
+        
+        {/* Navigation */}
+        <nav className="flex-1 p-4">
+          <ul className="space-y-2">
+            {[
+              { id: 'orders', label: 'Orders', icon: <ShoppingCart size={18} /> },
+              { id: 'images', label: 'Images', icon: <Image size={18} /> },
+              { id: 'prices', label: 'Prices', icon: <DollarSign size={18} /> },
+              { id: 'settings', label: 'Settings', icon: <Settings size={18} /> }
+            ].map(tab => (
+              <li key={tab.id}>
+                <button
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                    activeTab === tab.id
+                      ? 'bg-emerald-500/20 text-emerald-400 border-l-2 border-emerald-500'
+                      : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
+                  }`}
+                >
+                  <span className={activeTab === tab.id ? 'text-emerald-400' : 'text-gray-500'}>
+                    {tab.icon}
+                  </span>
+                  <span className="font-medium">{tab.label}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        
+        {/* Logout Button */}
+        <div className="p-4 border-t border-gray-700/80">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
+          >
+            <LogOut size={16} />
+            <span>Sign Out</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-x-hidden md:p-0 md:pt-0 pt-28 p-4">
+        <div className="container mx-auto p-4 md:p-6 max-w-6xl">
+          <AdminHeader 
+            title={activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+            description={`Manage your store ${activeTab} settings`}
+          />
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <AdminCard title="Total Orders" icon={<ShoppingCart size={18} className="text-emerald-400" />}>
+              <div className="text-3xl font-bold text-white">1,234</div>
+              <p className="text-sm text-gray-400 mt-1">+12% from last month</p>
+            </AdminCard>
+            <AdminCard title="Total Revenue" icon={<DollarSign size={18} className="text-emerald-400" />}>
+              <div className="text-3xl font-bold text-white">$45,678</div>
+              <p className="text-sm text-gray-400 mt-1">+8% from last month</p>
+            </AdminCard>
+            <AdminCard title="Active Users" icon={<Users size={18} className="text-emerald-400" />}>
+              <div className="text-3xl font-bold text-white">892</div>
+              <p className="text-sm text-gray-400 mt-1">+5% from last month</p>
+            </AdminCard>
+          </div>
+
+          <div className="space-y-6">
+            {activeTab === 'images' && <ImageManager />}
+            {activeTab === 'prices' && <PriceManager />}
+            {activeTab === 'orders' && <OrdersManager />}
+            {activeTab === 'settings' && <SettingsManager />}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -203,7 +285,7 @@ const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
 const AdminHeader: React.FC<{ title: string; description: string }> = ({ title, description }) => {
   return (
-    <div className="mb-6 hidden md:block">
+    <div className="mb-8">
       <h1 className="text-2xl font-bold text-white">{title}</h1>
       <p className="text-gray-400 mt-1">{description}</p>
     </div>
@@ -476,11 +558,26 @@ const AdminDashboard: React.FC = () => {
       <div className="flex-1 overflow-x-hidden md:p-0 md:pt-0 pt-28 p-4">
         <div className="container mx-auto p-4 md:p-6 max-w-6xl">
           <AdminHeader 
-            title={tabs.find(tab => tab.id === activeTab)?.label || ''}
-            description={`Manage your store ${tabs.find(tab => tab.id === activeTab)?.label.toLowerCase()} settings`}
+            title="Dashboard"
+            description="Manage your store settings and orders"
           />
           
-          <div className="transition-all duration-300">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <AdminCard title="Total Orders" icon={<ShoppingCart size={18} className="text-emerald-400" />}>
+              <div className="text-3xl font-bold text-white">1,234</div>
+              <p className="text-sm text-gray-400 mt-1">+12% from last month</p>
+            </AdminCard>
+            <AdminCard title="Total Revenue" icon={<DollarSign size={18} className="text-emerald-400" />}>
+              <div className="text-3xl font-bold text-white">$45,678</div>
+              <p className="text-sm text-gray-400 mt-1">+8% from last month</p>
+            </AdminCard>
+            <AdminCard title="Active Users" icon={<Users size={18} className="text-emerald-400" />}>
+              <div className="text-3xl font-bold text-white">892</div>
+              <p className="text-sm text-gray-400 mt-1">+5% from last month</p>
+            </AdminCard>
+          </div>
+
+          <div className="space-y-6">
             {activeTab === 'images' && <ImageManager />}
             {activeTab === 'prices' && <PriceManager />}
             {activeTab === 'orders' && <OrdersManager />}
@@ -1306,8 +1403,19 @@ const OrdersManager: React.FC = () => {
       const { data, error } = await query;
       
       if (error) throw error;
-      setOrders(data || []);
-      setTotalPages(Math.ceil(data.length / 10));
+      
+      // Ensure all orders have required properties with default values
+      const processedOrders = (data || []).map(order => ({
+        ...order,
+        total_amount: order.total_amount || 0,
+        items: order.items || [],
+        status: order.status || 'pending',
+        customer_name: order.customer_name || 'Unknown',
+        customer_phone: order.customer_phone || 'N/A'
+      }));
+      
+      setOrders(processedOrders);
+      setTotalPages(Math.ceil(processedOrders.length / 10));
     } catch (err: any) {
       setError(err.message);
       toast.error('Failed to fetch orders');
@@ -1337,12 +1445,14 @@ const OrdersManager: React.FC = () => {
     ));
   };
 
-  // Update the renderOrderItems function to use proper types
+  // Update the order items rendering to handle undefined values
   const renderOrderItems = (items: Order['items']) => {
-    return items.map((item: Order['items'][0], index: number) => (
+    if (!items || !Array.isArray(items)) return null;
+    
+    return items.map((item, index) => (
       <div key={index} className="flex justify-between py-2">
-        <span>{item.name}</span>
-        <span>${item.price.toFixed(2)}</span>
+        <span>{item.name || 'Unknown Item'}</span>
+        <span>${(item.price || 0).toFixed(2)}</span>
       </div>
     ));
   };
@@ -1352,19 +1462,26 @@ const OrdersManager: React.FC = () => {
       {/* Search and Filter Controls */}
       <div className="flex flex-col md:flex-row gap-4">
         <div className="flex-1">
-          <input
-            type="text"
-            placeholder="Search orders..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+          <div className="relative">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search orders by ID, name, or phone..."
+              className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-xl px-4 py-2 pl-10 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors"
+            />
+            <div className="absolute left-3 top-2.5 text-gray-400">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
         <div className="flex gap-4">
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="bg-gray-700/50 text-white border border-gray-600/80 rounded-xl px-4 py-2 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors"
           >
             <option value="all">All Status</option>
             <option value="pending">Pending</option>
@@ -1376,68 +1493,72 @@ const OrdersManager: React.FC = () => {
       </div>
 
       {/* Orders Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-gray-800/50 rounded-xl shadow overflow-hidden border border-gray-700/50">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+          <table className="min-w-full divide-y divide-gray-700">
+            <thead className="bg-gray-700/30">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Order ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Customer</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-gray-800/30 divide-y divide-gray-700">
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-4 text-center">
                     <div className="flex justify-center">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                      <div className="relative">
+                        <div className="w-12 h-12 border-2 border-emerald-500/30 rounded-full"></div>
+                        <div className="absolute inset-0 rounded-full border-t-2 border-emerald-500 animate-spin"></div>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Settings size={16} className="text-emerald-400" />
+                        </div>
+                      </div>
                     </div>
                   </td>
                 </tr>
               ) : paginatedOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-400">
                     No orders found
                   </td>
                 </tr>
               ) : (
                 paginatedOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                  <tr key={order.id} className="hover:bg-gray-700/30 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                       {order.id}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {order.customer_name}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      {order.customer_name || 'Unknown'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                       {new Date(order.created_at).toLocaleDateString()}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      ${order.total_amount.toFixed(2)}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                      ${(order.total_amount || 0).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <select
-                        value={order.status}
-                        onChange={(e) => handleStatusChange(order.id, e.target.value as Order['status'])}
-                        className="text-sm rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="processing">Processing</option>
-                        <option value="completed">Completed</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium border ${
+                        order.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30' :
+                        order.status === 'processing' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                        order.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
+                        'bg-red-500/20 text-red-400 border-red-500/30'
+                      }`}>
+                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                      </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                       <button
                         onClick={() => {
                           setSelectedOrder(order);
                           setIsModalOpen(true);
                         }}
-                        className="text-blue-600 hover:text-blue-900"
+                        className="text-emerald-400 hover:text-emerald-300 transition-colors"
                       >
                         View Details
                       </button>
@@ -1451,31 +1572,31 @@ const OrdersManager: React.FC = () => {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="px-6 py-4 flex items-center justify-between border-t border-gray-200">
+          <div className="px-6 py-4 flex items-center justify-between border-t border-gray-700">
             <div className="flex-1 flex justify-between sm:hidden">
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                className="relative inline-flex items-center px-4 py-2 border border-gray-700 text-sm font-medium rounded-md text-gray-300 bg-gray-800 hover:bg-gray-700 transition-colors"
               >
                 Previous
               </button>
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-700 text-sm font-medium rounded-md text-gray-300 bg-gray-800 hover:bg-gray-700 transition-colors"
               >
                 Next
               </button>
             </div>
             <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
               <div>
-                <p className="text-sm text-gray-700">
-                  Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
-                  <span className="font-medium">
+                <p className="text-sm text-gray-400">
+                  Showing <span className="font-medium text-white">{startIndex + 1}</span> to{' '}
+                  <span className="font-medium text-white">
                     {Math.min(startIndex + 10, filteredOrders.length)}
                   </span>{' '}
-                  of <span className="font-medium">{filteredOrders.length}</span> results
+                  of <span className="font-medium text-white">{filteredOrders.length}</span> results
                 </p>
               </div>
               <div>
@@ -1486,8 +1607,8 @@ const OrdersManager: React.FC = () => {
                       onClick={() => handlePageChange(page)}
                       className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
                         currentPage === page
-                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                          ? 'z-10 bg-emerald-500/20 border-emerald-500/50 text-emerald-400'
+                          : 'bg-gray-800 border-gray-700 text-gray-300 hover:bg-gray-700 transition-colors'
                       }`}
                     >
                       {page}
@@ -1502,17 +1623,17 @@ const OrdersManager: React.FC = () => {
 
       {/* Order Details Modal */}
       {isModalOpen && selectedOrder && (
-        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-700/50">
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h3 className="text-lg font-medium">Order Details</h3>
-                  <p className="text-sm text-gray-500">Order #{selectedOrder.id}</p>
+                  <h3 className="text-lg font-medium text-white">Order Details</h3>
+                  <p className="text-sm text-gray-400">Order #{selectedOrder.id}</p>
                 </div>
                 <button
                   onClick={() => setIsModalOpen(false)}
-                  className="text-gray-500 hover:text-gray-700"
+                  className="text-gray-400 hover:text-gray-300 transition-colors"
                 >
                   <X size={20} />
                 </button>
@@ -1520,18 +1641,18 @@ const OrdersManager: React.FC = () => {
               
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">Customer</h4>
-                  <p className="mt-1">{selectedOrder.customer_name}</p>
-                  <p className="text-sm text-gray-500">{selectedOrder.customer_phone}</p>
+                  <h4 className="text-sm font-medium text-gray-400">Customer</h4>
+                  <p className="mt-1 text-white">{selectedOrder.customer_name || 'Unknown'}</p>
+                  <p className="text-sm text-gray-400">{selectedOrder.customer_phone || 'N/A'}</p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">Order Date</h4>
-                  <p className="mt-1">{new Date(selectedOrder.created_at).toLocaleDateString()}</p>
+                  <h4 className="text-sm font-medium text-gray-400">Order Date</h4>
+                  <p className="mt-1 text-white">{new Date(selectedOrder.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
 
               <div className="mb-6">
-                <h4 className="text-sm font-medium text-gray-500">Order Items</h4>
+                <h4 className="text-sm font-medium text-gray-400">Order Items</h4>
                 <div className="mt-2 space-y-2">
                   {renderOrderItems(selectedOrder.items)}
                 </div>
@@ -1539,15 +1660,15 @@ const OrdersManager: React.FC = () => {
 
               <div className="flex justify-between items-center">
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">Total Amount</h4>
-                  <p className="text-lg font-medium">${selectedOrder.total_amount.toFixed(2)}</p>
+                  <h4 className="text-sm font-medium text-gray-400">Total Amount</h4>
+                  <p className="text-lg font-medium text-white">${(selectedOrder.total_amount || 0).toFixed(2)}</p>
                 </div>
                 <div>
-                  <h4 className="text-sm font-medium text-gray-500">Status</h4>
+                  <h4 className="text-sm font-medium text-gray-400">Status</h4>
                   <select
-                    value={selectedOrder.status}
+                    value={selectedOrder.status || 'pending'}
                     onChange={(e) => handleStatusChange(selectedOrder.id, e.target.value as Order['status'])}
-                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                    className="mt-1 block w-full rounded-xl border-gray-700 bg-gray-800 text-white focus:border-emerald-500 focus:ring-emerald-500 sm:text-sm"
                   >
                     <option value="pending">Pending</option>
                     <option value="processing">Processing</option>
