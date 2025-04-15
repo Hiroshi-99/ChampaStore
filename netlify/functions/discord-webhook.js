@@ -4,6 +4,20 @@ const fetch = require('node-fetch');
 // Use NETLIFY_ prefix for environment variables in Netlify Functions
 const DISCORD_WEBHOOK_URL = process.env.NETLIFY_DISCORD_WEBHOOK_URL;
 
+const RATE_LIMIT_DURATION = 60 * 1000; // 1 minute
+const MAX_ATTEMPTS = 5;
+const rateLimitStore = new Map();
+
+// Clean up expired rate limit entries
+const cleanupRateLimits = () => {
+  const now = Date.now();
+  for (const [key, value] of rateLimitStore.entries()) {
+    if (now - value.timestamp > RATE_LIMIT_DURATION) {
+      rateLimitStore.delete(key);
+    }
+  }
+};
+
 exports.handler = async (event, context) => {
   // Log the request for debugging
   console.log("Discord webhook function called");
@@ -35,6 +49,29 @@ exports.handler = async (event, context) => {
   }
 
   try {
+    // Clean up expired rate limits
+    cleanupRateLimits();
+
+    // Get client IP for rate limiting
+    const clientIp = event.headers['client-ip'] || event.headers['x-forwarded-for'] || 'unknown';
+    
+    // Check rate limit
+    const rateLimit = rateLimitStore.get(clientIp) || { attempts: 0, timestamp: Date.now() };
+    
+    if (rateLimit.attempts >= MAX_ATTEMPTS) {
+      const timeLeft = Math.ceil((RATE_LIMIT_DURATION - (Date.now() - rateLimit.timestamp)) / 1000);
+      return {
+        statusCode: 429,
+        headers: {
+          ...headers,
+          'Retry-After': timeLeft.toString()
+        },
+        body: JSON.stringify({ 
+          message: `Too many requests. Please try again in ${timeLeft} seconds.` 
+        }),
+      };
+    }
+
     // Check if webhook URL is configured
     if (!DISCORD_WEBHOOK_URL) {
       console.error('Discord webhook URL not configured');
@@ -45,20 +82,28 @@ exports.handler = async (event, context) => {
       };
     }
     
-    // Parse the incoming request
-    const payload = JSON.parse(event.body);
-    console.log("Received payload:", JSON.stringify(payload).substring(0, 200) + "...");
-    
-    // Validate the request has required fields
+    // Parse and validate the incoming request
+    let payload;
+    try {
+      payload = JSON.parse(event.body);
+    } catch (error) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ message: 'Invalid JSON payload' }),
+      };
+    }
+
+    // Validate required fields
     if (!payload.type || !payload.data) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ message: 'Invalid request format' }),
+        body: JSON.stringify({ message: 'Missing required fields: type and data' }),
       };
     }
 
-    // Check for valid notification types
+    // Validate notification type
     if (payload.type !== 'new_order') {
       return {
         statusCode: 400,
@@ -67,7 +112,7 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Basic validation of Discord webhook data structure
+    // Validate webhook data structure
     const webhookData = payload.data;
     if (!webhookData.embeds || !Array.isArray(webhookData.embeds)) {
       return {
@@ -77,12 +122,17 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Log the Discord webhook URL (partial, for security)
-    const webhookUrlPrefix = DISCORD_WEBHOOK_URL.substring(0, 30);
-    console.log(`Sending to Discord webhook: ${webhookUrlPrefix}...`);
+    // Update rate limit
+    rateLimit.attempts += 1;
+    rateLimit.timestamp = Date.now();
+    rateLimitStore.set(clientIp, rateLimit);
 
-    // Send to Discord
-    const response = await fetch(DISCORD_WEBHOOK_URL, {
+    // Send to Discord with timeout
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Request timeout')), 10000);
+    });
+
+    const fetchPromise = fetch(DISCORD_WEBHOOK_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -90,16 +140,30 @@ exports.handler = async (event, context) => {
       body: JSON.stringify(webhookData),
     });
 
+    const response = await Promise.race([fetchPromise, timeoutPromise]);
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Discord webhook error:', errorText);
       
+      // Handle specific Discord error codes
+      if (response.status === 429) {
+        return {
+          statusCode: 429,
+          headers,
+          body: JSON.stringify({ 
+            message: 'Discord rate limit reached. Please try again later.',
+            error: errorText
+          }),
+        };
+      }
+      
       return {
-        statusCode: 500,
+        statusCode: response.status,
         headers,
         body: JSON.stringify({ 
           message: 'Failed to send Discord notification',
-          error: `${response.status} ${response.statusText}`
+          error: `${response.status} ${response.statusText}: ${errorText}`
         }),
       };
     }
@@ -107,7 +171,11 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ message: 'Notification sent successfully' }),
+      body: JSON.stringify({ 
+        message: 'Notification sent successfully',
+        attempts: rateLimit.attempts,
+        remaining: MAX_ATTEMPTS - rateLimit.attempts
+      }),
     };
   } catch (error) {
     console.error('Error in discord-webhook function:', error);
@@ -115,7 +183,11 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ message: 'Server error', error: error.message }),
+      body: JSON.stringify({ 
+        message: 'Server error',
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      }),
     };
   }
 }; 

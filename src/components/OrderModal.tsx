@@ -459,323 +459,258 @@ export const OrderModal: React.FC<OrderModalProps> = React.memo(({
     reader.readAsDataURL(file);
   }, []);
 
-  const sendToDiscord = async (orderData: any, paymentProofUrl: string) => {
+  // Ensure storage bucket exists
+  const ensureStorageBucket = async () => {
     try {
-      // Create a more detailed and attractive Discord webhook message
-      const embedColor = (() => {
-        // Match color to rank
-        const rankOption = ranks.find(r => r.name === orderData.rank);
-        // Default to green if no match found
-        return rankOption ? 0x00aa00 : 0x00aa00;
-      })();
+      const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
       
-      // Format timestamp for better readability
-      const formattedDate = new Date().toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+      if (bucketsError) throw bucketsError;
+      
+      const paymentProofsBucket = buckets?.find(b => b.name === 'payment-proofs');
+      
+      if (!paymentProofsBucket) {
+        const { error: createError } = await supabase.storage.createBucket('payment-proofs', {
+          public: true,
+          fileSizeLimit: 5242880, // 5MB
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp']
+        });
+        
+        if (createError) throw createError;
+      }
+    } catch (error) {
+      console.error('Failed to ensure storage bucket:', error);
+      throw new Error('Failed to initialize storage');
+    }
+  };
+
+  // Fallback upload to Imgur
+  const uploadToImgurFallback = async () => {
+    if (!paymentProof) return null;
+    
+    try {
+      // Convert file to base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            // Remove data URL prefix
+            const base64Data = reader.result.split(',')[1];
+            resolve(base64Data);
+          } else {
+            reject(new Error('Failed to read file as base64'));
+          }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(paymentProof);
       });
 
-      const webhookContent = {
-        username: "Champa Store Bot",
-        avatar_url: "https://i.imgur.com/R66g1Pe.jpg",
-        content: "🎮 **NEW RANK ORDER!** 🎮",
-        embeds: [
-          {
-            title: `New ${sanitizeInput(orderData.rank)} Rank Order`,
-            color: embedColor,
-            description: `A new order has been received and is awaiting processing.`,
-            fields: [
-              {
-                name: "👤 Customer",
-                value: `\`${sanitizeInput(orderData.username)}\``,
-                inline: true
+      // Upload to Imgur
+      const response = await fetch('https://api.imgur.com/3/image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Client-ID ${process.env.NEXT_PUBLIC_IMGUR_CLIENT_ID}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image: base64,
+          type: 'base64'
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.data.error);
+      }
+
+      const result = await response.json();
+      return result.data.link;
+    } catch (error) {
+      console.error('Failed to upload to Imgur:', error);
+      return null;
+    }
+  };
+
+  // Send to Discord webhook
+  const sendToDiscord = async (orderData: any, paymentProofUrl: string) => {
+    try {
+      const webhookData = {
+        type: 'new_order',
+        data: {
+          embeds: [
+            {
+              title: '🛍️ New Order Received',
+              color: 0x4ade80, // Emerald color
+              fields: [
+                {
+                  name: '👤 Username',
+                  value: orderData.username,
+                  inline: true
+                },
+                {
+                  name: '🎮 Platform',
+                  value: orderData.platform.charAt(0).toUpperCase() + orderData.platform.slice(1),
+                  inline: true
+                },
+                {
+                  name: '⭐ Rank',
+                  value: orderData.rank,
+                  inline: true
+                },
+                {
+                  name: '💰 Price',
+                  value: `$${orderData.price.toFixed(2)}`,
+                  inline: true
+                },
+                {
+                  name: '🆔 Order ID',
+                  value: orderData.orderId || 'N/A',
+                  inline: true
+                },
+                {
+                  name: '📅 Date',
+                  value: new Date().toLocaleString(),
+                  inline: true
+                }
+              ],
+              thumbnail: {
+                url: 'https://i.imgur.com/ArKEQz1.png'
               },
-              {
-                name: "🎮 Platform",
-                value: `\`${sanitizeInput(orderData.platform.toUpperCase())}\``,
-                inline: true
-              },
-              {
-                name: "⭐ Rank",
-                value: `\`${sanitizeInput(orderData.rank)}\``,
-                inline: true
-              },
-              {
-                name: "💰 Price",
-                value: `\`$${orderData.price}\``,
-                inline: true
-              },
-              {
-                name: "⏰ Time",
-                value: `\`${formattedDate}\``,
-                inline: true
+              image: paymentProofUrl ? {
+                url: paymentProofUrl
+              } : undefined,
+              footer: {
+                text: 'Champa Store - Order System',
+                icon_url: 'https://i.imgur.com/ArKEQz1.png'
               }
-            ],
-            thumbnail: {
-              url: logoImage
-            },
-            footer: {
-              text: "Champa Store Order System",
-              icon_url: logoImage
-            },
-            timestamp: new Date().toISOString()
-          }
-        ]
+            }
+          ]
+        }
       };
 
-      // Add the payment proof image as a separate embed
-      if (paymentProofUrl) {
-        webhookContent.embeds.push({
-          title: "💳 Payment Proof",
-          color: embedColor,
-          description: "Payment verification image",
-          fields: [],
-          thumbnail: {
-            url: paymentProofUrl
-          },
-          footer: {
-            text: "Champa Store Order System",
-            icon_url: logoImage
-          },
-          timestamp: new Date().toISOString()
-        });
-      }
-
-      // Sanitize the entire webhook content
-      const sanitizedContent = sanitizeDiscordContent(webhookContent);
-      
-      // Fetch site config for the webhook URL
-      const { data: configData, error: configError } = await supabase
-        .from('site_config')
-        .select('value')
-        .eq('key', 'discord_webhook_url')
-        .single();
-      
-      if (configError) {
-        console.error('Error fetching Discord webhook URL:', configError);
-        return;
-      }
-      
-      const webhookUrl = configData?.value;
-      if (!webhookUrl) {
-        console.error('Discord webhook URL not configured');
-        return;
-      }
-
-      // Send the webhook
-      const response = await fetch(webhookUrl, {
+      const response = await fetch('/.netlify/functions/discord-webhook', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(sanitizedContent),
+        body: JSON.stringify(webhookData)
       });
 
       if (!response.ok) {
-        throw new Error(`Discord webhook error: ${response.status}`);
+        const errorText = await response.text();
+        throw new Error(`Discord webhook error: ${response.status} ${response.statusText} - ${errorText}`);
       }
-      
-      console.log('Discord notification sent successfully');
+
+      return true;
     } catch (error) {
       console.error('Failed to send Discord notification:', error);
+      throw error;
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (loading) return;
+    
+    // Input validation
+    const sanitizedUsername = sanitizeInput(username.trim());
+    if (!sanitizedUsername) {
+      toast.error('Please enter a valid username');
+      return;
+    }
+    
+    if (!selectedRank) {
+      toast.error('Please select a rank');
+      return;
+    }
+    
+    if (!paymentProof) {
+      toast.error('Please upload payment proof');
+      return;
+    }
+
     setLoading(true);
     setLoadingStage('uploading');
-    setUploadError(null);
-
+    
     try {
-      // Rate limit check using combined identifiers for stronger protection
-      const clientIP = 'client-ip'; // In production, use actual client IP
-      const identifierBase = username.toLowerCase() + '-' + navigator.userAgent.substring(0, 50);
-      const identifier = btoa(identifierBase).substring(0, 50); // Base64 encode combined identifier
+      // Ensure storage bucket exists
+      await ensureStorageBucket();
       
-      if (!checkRateLimit(identifier)) {
-        throw new Error('Too many attempts. Please try again later.');
-      }
-
-      // Enhanced input validation
-      if (!paymentProof) throw new Error('Please upload payment proof');
+      // Generate unique order ID
+      const orderId = `CS-${Date.now().toString(36).toUpperCase()}`;
       
-      // Sanitize and validate username
-      const sanitizedUsername = sanitizeInput(username.trim());
-      if (!sanitizedUsername) throw new Error('Please enter your username');
-      if (sanitizedUsername.length > 16) throw new Error('Username is too long (max 16 characters)');
-      if (!/^[a-zA-Z0-9_]{3,16}$/.test(sanitizedUsername)) {
-        throw new Error('Invalid Minecraft username format. Use only letters, numbers, and underscores.');
-      }
-      
-      // Check for inappropriate content in username
-      const forbiddenTerms = /\b(admin|moderator|owner|staff|hack|cheat|exploit)\b/i;
-      if (forbiddenTerms.test(sanitizedUsername)) {
-        throw new Error('Username contains prohibited terms');
-      }
-
-      const selectedRankOption = ranks.find(rank => rank.name === selectedRank);
-      if (!selectedRankOption) throw new Error('Please select a valid rank');
-
-      // Enhanced file validation
-      if (!paymentProof.type.startsWith('image/')) {
-        throw new Error('Please upload a valid image file');
-      }
-
-      // Validate file size (max 3MB for tighter control)
-      if (paymentProof.size > 3 * 1024 * 1024) {
-        throw new Error('Image size should be less than 3MB');
-      }
-
-      // Stricter file type validation
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-      if (!allowedTypes.includes(paymentProof.type)) {
-        throw new Error('Please upload a JPEG, PNG, or WebP image');
-      }
-
-      // Generate a unique filename with timestamp and random string
-      const timestamp = Date.now();
-      const randomString = Math.random().toString(36).substring(2, 10);
-      const fileExtension = paymentProof.name.split('.').pop();
-      const fileName = `payment_proof_${sanitizedUsername}_${timestamp}_${randomString}.${fileExtension}`;
-      const filePath = `payment_proofs/${fileName}`;
-
-      // Define a function for fallback upload if storage bucket fails
-      const uploadToImgurFallback = async () => {
-        // Fallback to trying base64 data
-        try {
-          // Convert file to base64 and use data URL directly
-          return new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-            reader.onload = () => {
-              if (typeof reader.result === 'string') {
-                // For real implementation, you would send this to your server endpoint 
-                // that handles uploads to a service like Imgur, Cloudinary, etc.
-                // For now we'll just use the data URL directly
-                resolve(reader.result);
-              } else {
-                reject(new Error('Failed to read file as base64'));
-              }
-            };
-            reader.onerror = () => reject(reader.error);
-            reader.readAsDataURL(paymentProof!);
-          });
-        } catch (fallbackError) {
-          console.error('Failed to upload using fallback method:', fallbackError);
-          throw new Error('Failed to upload image (fallback mode also failed)');
-        }
-      };
-      
-      // Upload payment proof image with improved error handling and fallback
+      // Upload payment proof
       let paymentProofUrl = '';
-      setLoadingStage('uploading');
-      
       try {
-        if (uploadFallbackMode) {
-          // Use fallback method directly
-          paymentProofUrl = await uploadToImgurFallback();
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('payment-proofs')
+          .upload(`${orderId}/${paymentProof.name}`, paymentProof, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) throw uploadError;
+        
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('payment-proofs')
+          .getPublicUrl(`${orderId}/${paymentProof.name}`);
+        
+        paymentProofUrl = publicUrl;
+      } catch (error) {
+        console.error('Failed to upload to Supabase:', error);
+        
+        // Fallback to Imgur upload
+        if (!uploadFallbackMode) {
+          setUploadFallbackMode(true);
+          const imgurUrl = await uploadToImgurFallback();
+          if (imgurUrl) {
+            paymentProofUrl = imgurUrl;
+          } else {
+            throw new Error('Failed to upload payment proof');
+          }
         } else {
-          // Try bucket-by-bucket with better error handling
-          let uploadSuccess = false;
-          
-          // Try multiple buckets in case some are not available
-          for (const bucket of ['payment-proofs', 'images', 'store-images', 'public', 'media', 'uploads']) {
-            try {
-              const { data: uploadData, error: uploadError } = await supabase.storage
-              .from(bucket)
-              .upload(filePath, paymentProof, {
-                cacheControl: '3600',
-                  upsert: false
-                });
-                
-              if (!uploadError) {
-                // Get public URL
-                const { data: publicUrlData } = supabase.storage
-                  .from(bucket)
-                  .getPublicUrl(filePath);
-                
-                paymentProofUrl = publicUrlData.publicUrl;
-                uploadSuccess = true;
-              break;
-            }
-          } catch (err) {
-              // Continue trying the next bucket
-              console.warn(`Failed to upload to bucket ${bucket}:`, err);
-            }
-          }
-          
-          // If all storage buckets fail, try the fallback method
-          if (!uploadSuccess) {
-            console.warn('All storage buckets failed, using fallback upload');
-            paymentProofUrl = await uploadToImgurFallback();
-            
-            // Mark that we're in fallback mode for future uploads
-            setUploadFallbackMode(true);
-          }
+          throw new Error('All upload methods failed');
         }
-      } catch (uploadError) {
-        console.error('Failed to upload image:', uploadError);
-        throw new Error('Failed to upload image. Please try again or contact support.');
-      }
-      
-      if (!paymentProofUrl) {
-        throw new Error('Image upload failed. Please try again or contact support.');
       }
 
       setLoadingStage('processing');
-
-      // Create order in database
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .insert({
+      
+      // Prepare order data
+      const orderData = {
+        orderId,
         username: sanitizedUsername,
         platform,
         rank: selectedRank,
         price: selectedRankOption.price,
-          status: 'pending',
-          payment_proof: paymentProofUrl
-        })
-        .select('*')
-        .single();
-      
-      if (orderError) throw orderError;
-      
-      // Send notification to Discord
-      setLoadingStage('finalizing');
+        created_at: new Date().toISOString(),
+        payment_proof: paymentProofUrl
+      };
+
+      // Send Discord notification
       await sendToDiscord(orderData, paymentProofUrl);
+
+      setLoadingStage('finalizing');
       
-      // Show confirmation message and clear form
-      toast.success('Order submitted successfully!');
+      // Update receipt data and show receipt
+      setReceiptData(orderData);
+      setOrderComplete(true);
+      setShowReceipt(true);
+      
+      // Call onConfirm callback
+      onConfirm();
+      
+      // Reset form
       setUsername('');
-      setPlatform('java');
+      setPlatform(initialPlatform);
+      setSelectedRank('VIP');
       setPaymentProof(null);
       setPaymentProofPreview(null);
       
-      // Set receipt data
-      setReceiptData({
-        ...orderData,
-        rankImage: selectedRankOption.image
-      });
-      
-      // Show order completed state with receipt
-      setOrderComplete(true);
-      setShowReceipt(true);
-    } catch (error: any) {
-      console.error('Order submission error:', error);
-      
-      let errorMessage = 'Failed to submit your order. Please try again.';
-      if (error.message) {
-        errorMessage = error.message;
-      } else if (typeof error === 'string') {
-        errorMessage = error;
-      }
-      
-      toast.error(errorMessage);
-      setUploadError(errorMessage);
+      toast.success('Order submitted successfully!');
+    } catch (error) {
+      console.error('Order submission failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to submit order');
     } finally {
       setLoading(false);
       setLoadingStage(null);
@@ -803,89 +738,6 @@ export const OrderModal: React.FC<OrderModalProps> = React.memo(({
     };
   }, [paymentProofPreview]);
 
-  // Create the payment-proofs bucket explicitly when component loads
-  useEffect(() => {
-    const ensureStorageBucket = async () => {
-      if (isOpen) {
-        try {
-          // First check for bucket permissions before attempting creation
-          const { data: bucketData, error: bucketListError } = await supabase.storage.listBuckets();
-          
-          // If we get an error listing buckets, we might not have permission but can still try uploads
-          if (bucketListError) {
-            console.info('Note: Unable to list buckets, but will still try uploads:', bucketListError.message);
-            setUploadDisabled(false); // Still allow uploads, we'll use fallbacks if needed
-            return;
-          }
-          
-          // Check if payment-proofs bucket already exists
-          const hasPaymentProofsBucket = bucketData?.some(b => b.name === 'payment-proofs');
-          
-          if (hasPaymentProofsBucket) {
-            console.log('payment-proofs bucket exists, testing access...');
-            
-            // Test upload a small file to verify write access
-            try {
-              const testBlob = new Blob(['test'], { type: 'text/plain' });
-              const testFile = new File([testBlob], 'access-test.txt', { type: 'text/plain' });
-              const testPath = `test-${Date.now()}.txt`;
-              
-              const { error: testError } = await supabase.storage
-                .from('payment-proofs')
-                .upload(testPath, testFile, { upsert: true });
-                
-              if (testError) {
-                console.warn('Cannot write to payment-proofs bucket:', testError.message);
-                // Still allow uploads as we'll use data URL fallback if needed
-                setUploadDisabled(false);
-              } else {
-                console.log('Successfully verified write access to payment-proofs bucket');
-                setUploadDisabled(false);
-              }
-            } catch (e) {
-              console.warn('Error testing bucket permissions:', e);
-              setUploadDisabled(false);
-            }
-          } else {
-            // Try to create the payment-proofs bucket
-            console.log('payment-proofs bucket not found, attempting to create it');
-            
-            try {
-              const bucketCreated = await createStorageBucket('payment-proofs');
-              
-              if (bucketCreated) {
-                console.log('Successfully created payment-proofs bucket');
-                setUploadDisabled(false);
-              } else {
-                // Even if creation fails, we'll try to use the bucket anyway
-                console.warn('Unable to create payment-proofs bucket, will use fallbacks if needed');
-                setUploadDisabled(false);
-              }
-            } catch (createError) {
-              console.error('Error creating bucket:', createError);
-              setUploadDisabled(false);
-            }
-          }
-        } catch (err) {
-          console.error('Error setting up storage bucket:', err);
-          setUploadDisabled(false); // Still allow uploads, we'll use the fallback
-        }
-      }
-    };
-    
-    ensureStorageBucket();
-  }, [isOpen]);
-
-  // Optimize form submission
-  const validateForm = useCallback(() => {
-    if (!username.trim()) return "Please enter your username";
-    if (username.length > 16) return "Username is too long (max 16 characters)";
-    if (!/^[a-zA-Z0-9_]{3,16}$/.test(username)) return "Invalid Minecraft username format";
-    if (!paymentProof) return "Please upload payment proof";
-    if (!selectedRank) return "Please select a rank";
-    return null;
-  }, [username, paymentProof, selectedRank]);
-  
   // Memoize UI sections to prevent unnecessary re-renders
   const renderSummarySection = useMemo(() => (
     <div className="bg-gray-800/70 backdrop-blur-sm rounded-xl p-4 sm:p-5 border border-gray-700/80 transform transition-all duration-300 hover:border-emerald-500/40 shadow-md hover:shadow-emerald-900/20">

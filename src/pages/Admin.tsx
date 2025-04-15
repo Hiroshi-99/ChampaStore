@@ -4,20 +4,55 @@ import { useNavigate } from 'react-router-dom';
 import { Save, Image, DollarSign, Percent, Settings, LogOut, ShoppingCart, FileText, X, AlertTriangle, Lock, Upload, Shield, Info } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
+// Types
+interface Order {
+  id: string;
+  customer_name: string;
+  customer_phone: string;
+  created_at: string;
+  total_amount: number;
+  status: 'pending' | 'processing' | 'completed' | 'cancelled';
+  items: Array<{
+    name: string;
+    price: number;
+  }>;
+}
+
+interface Product {
+  id: number;
+  name: string;
+  description: string;
+  price: number;
+  original_price: number | null;
+  image_url: string;
+  color: string;
+}
+
 // Enhanced authentication with SessionProvider pattern
 const useAuth = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [loginAttempts, setLoginAttempts] = useState<{[key: string]: {count: number, timestamp: number}}>({});
   const navigate = useNavigate();
 
-  // Session monitoring
+  // Session monitoring with timeout
   useEffect(() => {
     const fetchSession = async () => {
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
         setSession(data.session);
+        
+        // Set session timeout
+        if (data.session) {
+          const timeout = setTimeout(() => {
+            logout();
+            toast.error('Session expired. Please login again.');
+          }, 30 * 60 * 1000); // 30 minutes
+          
+          return () => clearTimeout(timeout);
+        }
       } catch (err: any) {
         console.error('Auth error:', err);
         setAuthError(err.message);
@@ -38,6 +73,35 @@ const useAuth = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Clean up expired login attempts
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = Date.now();
+      setLoginAttempts(prev => {
+        const updated = { ...prev };
+        for (const [ip, data] of Object.entries(prev)) {
+          if (now - data.timestamp > 5 * 60 * 1000) { // 5 minutes
+            delete updated[ip];
+          }
+        }
+        return updated;
+      });
+    }, 60 * 1000); // Check every minute
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Get client IP
+  const getClientIP = async () => {
+    try {
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      return data.ip;
+    } catch (error) {
+      return 'unknown';
+    }
+  };
+
   // Login handler with rate limiting and security enhancements
   const login = useCallback(async (email: string, password: string) => {
     if (!email || !password) {
@@ -49,6 +113,18 @@ const useAuth = () => {
     setAuthError(null);
 
     try {
+      // Get client IP for rate limiting
+      const clientIP = await getClientIP();
+      
+      // Check rate limit
+      const now = Date.now();
+      const attempts = loginAttempts[clientIP] || { count: 0, timestamp: now };
+      
+      if (attempts.count >= 5 && now - attempts.timestamp < 5 * 60 * 1000) {
+        setAuthError('Too many login attempts. Please try again later.');
+        return false;
+      }
+
       // Add short delay to prevent brute force
       await new Promise(resolve => setTimeout(resolve, 500));
       
@@ -57,7 +133,25 @@ const useAuth = () => {
         password,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Update login attempts
+        setLoginAttempts(prev => ({
+          ...prev,
+          [clientIP]: {
+            count: (prev[clientIP]?.count || 0) + 1,
+            timestamp: now
+          }
+        }));
+        throw error;
+      }
+
+      // Reset attempts on successful login
+      setLoginAttempts(prev => {
+        const updated = { ...prev };
+        delete updated[clientIP];
+        return updated;
+      });
+
       return true;
     } catch (error: any) {
       setAuthError(error.message || 'Authentication failed');
@@ -66,7 +160,7 @@ const useAuth = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loginAttempts]);
 
   // Logout handler
   const logout = useCallback(async () => {
@@ -82,6 +176,108 @@ const useAuth = () => {
   }, [navigate]);
 
   return { session, loading, authError, login, logout };
+};
+
+// Components
+const AdminLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex">
+      {/* Sidebar */}
+      <div className="w-64 bg-gray-800/80 backdrop-blur-sm border-r border-gray-700/80 hidden md:flex md:flex-col">
+        <div className="p-5 border-b border-gray-700/80">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg">
+              <Settings size={20} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-white">Admin Panel</h1>
+              <p className="text-xs text-gray-400">Champa Store</p>
+            </div>
+          </div>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const AdminHeader: React.FC<{ title: string; description: string }> = ({ title, description }) => {
+  return (
+    <div className="mb-6 hidden md:block">
+      <h1 className="text-2xl font-bold text-white">{title}</h1>
+      <p className="text-gray-400 mt-1">{description}</p>
+    </div>
+  );
+};
+
+const AdminCard: React.FC<{ children: React.ReactNode; title: string; icon: React.ReactNode }> = ({ 
+  children, 
+  title, 
+  icon 
+}) => {
+  return (
+    <div className="bg-gradient-to-br from-gray-800/80 to-gray-800/40 rounded-2xl p-6 border border-gray-700/50 backdrop-blur-sm shadow-xl">
+      <h3 className="text-xl font-semibold text-white mb-5 pb-3 border-b border-gray-700/50 flex items-center gap-2">
+        <div className="bg-emerald-500/20 p-1.5 rounded-lg">
+          {icon}
+        </div>
+        {title}
+      </h3>
+      {children}
+    </div>
+  );
+};
+
+const LoadingSpinner: React.FC = () => {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="relative">
+        <div className="w-12 h-12 border-2 border-emerald-500/30 rounded-full"></div>
+        <div className="absolute inset-0 rounded-full border-t-2 border-emerald-500 animate-spin"></div>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Settings size={16} className="text-emerald-400" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ErrorMessage: React.FC<{ message: string }> = ({ message }) => {
+  return (
+    <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl mb-6 flex items-start gap-3 backdrop-blur-sm">
+      <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+      <p className="text-sm">{message}</p>
+    </div>
+  );
+};
+
+const SaveButton: React.FC<{ 
+  isSaving: boolean; 
+  onClick: () => void; 
+  disabled?: boolean 
+}> = ({ isSaving, onClick, disabled }) => {
+  return (
+    <button
+      onClick={onClick}
+      disabled={isSaving || disabled}
+      className="relative group"
+    >
+      <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full blur opacity-60 group-hover:opacity-100 transition duration-200 group-disabled:opacity-30"></div>
+      <div className="relative bg-gray-900 text-white px-6 py-3 rounded-full flex items-center gap-2 group-hover:bg-gray-800 transition-colors">
+        {isSaving ? (
+          <>
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span>Saving...</span>
+          </>
+        ) : (
+          <>
+            <Save size={18} className="text-emerald-400" />
+            <span>Save Changes</span>
+          </>
+        )}
+      </div>
+    </button>
+  );
 };
 
 // Main Admin Dashboard Component
@@ -108,23 +304,9 @@ const AdminDashboard: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative w-16 h-16">
-            <div className="absolute inset-0 rounded-full border-2 border-emerald-500/30"></div>
-            <div className="absolute inset-0 rounded-full border-t-2 border-emerald-500 animate-spin"></div>
-            <div className="absolute inset-2 rounded-full bg-gray-800 flex items-center justify-center">
-              <Settings size={20} className="text-emerald-400" />
-            </div>
-          </div>
-          <p className="text-emerald-400 font-medium">Loading dashboard...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
-  // Login screen
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-4">
@@ -137,12 +319,7 @@ const AdminDashboard: React.FC = () => {
             <p className="text-gray-400 text-sm">Secure access to management area</p>
           </div>
           
-          {authError && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl mb-6 flex items-start gap-3 backdrop-blur-sm">
-              <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-              <p className="text-sm">{authError}</p>
-            </div>
-          )}
+          {authError && <ErrorMessage message={authError} />}
           
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
@@ -228,103 +405,47 @@ const AdminDashboard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 flex">
-      {/* Responsive Sidebar */}
-      <div className="w-64 bg-gray-800/80 backdrop-blur-sm border-r border-gray-700/80 hidden md:flex md:flex-col">
-        <div className="p-5 border-b border-gray-700/80">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg">
-              <Settings size={20} className="text-white" />
-            </div>
-            <div>
-              <h1 className="text-lg font-bold text-white">Admin Panel</h1>
-              <p className="text-xs text-gray-400">Champa Store</p>
-            </div>
-          </div>
-        </div>
-        
-        <nav className="flex-1 p-4">
-          <ul className="space-y-2">
-            {tabs.map(tab => (
-              <li key={tab.id}>
-                <button
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                    activeTab === tab.id
-                      ? 'bg-emerald-500/20 text-emerald-400 border-l-2 border-emerald-500'
-                      : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
-                  }`}
-                >
-                  <span className={activeTab === tab.id ? 'text-emerald-400' : 'text-gray-500'}>
-                    {tab.icon}
-                  </span>
-                  <span className="font-medium">{tab.label}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        
-        <div className="p-4 border-t border-gray-700/80">
-          <button
-            onClick={logout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
-          >
-            <LogOut size={16} />
-            <span>Sign Out</span>
-          </button>
-        </div>
-      </div>
-      
-      {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 inset-x-0 z-10 bg-gray-800 border-b border-gray-700 p-4">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
-              <Settings size={16} className="text-white" />
-            </div>
-            <h1 className="text-lg font-bold text-white">Admin Panel</h1>
-          </div>
-          <button
-            onClick={logout}
-            className="p-2 rounded-lg bg-gray-700 text-gray-300"
-          >
-            <LogOut size={18} />
-          </button>
-        </div>
-        
-        <div className="mt-4 grid grid-cols-4 gap-1">
+    <AdminLayout>
+      <nav className="flex-1 p-4">
+        <ul className="space-y-2">
           {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex flex-col items-center justify-center p-2 rounded-lg ${
-                activeTab === tab.id
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'text-gray-400 hover:bg-gray-700'
-              }`}
-            >
-              {tab.icon}
-              <span className="text-xs mt-1">{tab.label}</span>
-            </button>
+            <li key={tab.id}>
+              <button
+                onClick={() => setActiveTab(tab.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                  activeTab === tab.id
+                    ? 'bg-emerald-500/20 text-emerald-400 border-l-2 border-emerald-500'
+                    : 'text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
+                }`}
+              >
+                <span className={activeTab === tab.id ? 'text-emerald-400' : 'text-gray-500'}>
+                  {tab.icon}
+                </span>
+                <span className="font-medium">{tab.label}</span>
+              </button>
+            </li>
           ))}
-        </div>
-      </div>
+        </ul>
+      </nav>
       
+      <div className="p-4 border-t border-gray-700/80">
+        <button
+          onClick={logout}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gray-700/50 hover:bg-gray-700 text-gray-300 hover:text-white transition-colors"
+        >
+          <LogOut size={16} />
+          <span>Sign Out</span>
+        </button>
+      </div>
+
       {/* Main Content */}
       <div className="flex-1 overflow-x-hidden md:p-0 md:pt-0 pt-28 p-4">
         <div className="container mx-auto p-4 md:p-6 max-w-6xl">
-          {/* Page Title */}
-          <div className="mb-6 hidden md:block">
-            <h1 className="text-2xl font-bold text-white">
-              {tabs.find(tab => tab.id === activeTab)?.label}
-            </h1>
-            <p className="text-gray-400 mt-1">
-              Manage your store {tabs.find(tab => tab.id === activeTab)?.label.toLowerCase()} settings
-            </p>
-          </div>
+          <AdminHeader 
+            title={tabs.find(tab => tab.id === activeTab)?.label || ''}
+            description={`Manage your store ${tabs.find(tab => tab.id === activeTab)?.label.toLowerCase()} settings`}
+          />
           
-          {/* Tab Content */}
           <div className="transition-all duration-300">
             {activeTab === 'images' && <ImageManager />}
             {activeTab === 'prices' && <PriceManager />}
@@ -333,7 +454,7 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </AdminLayout>
   );
 };
 
@@ -589,37 +710,15 @@ const ImageManager: React.FC = () => {
     <div className="space-y-8">
       {/* Floating save button */}
       <div className="fixed bottom-6 right-6 z-40">
-        <button
+        <SaveButton 
+          isSaving={isSaving}
           onClick={handleSaveImages}
           disabled={isSaving || !!uploadLoading}
-          className="relative group"
-        >
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full blur opacity-60 group-hover:opacity-100 transition duration-200 group-disabled:opacity-30"></div>
-          <div className="relative bg-gray-900 text-white px-6 py-3 rounded-full flex items-center gap-2 group-hover:bg-gray-800 transition-colors">
-            {isSaving ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Saving...</span>
-              </>
-            ) : (
-              <>
-                <Save size={18} className="text-emerald-400" />
-                <span>Save Changes</span>
-              </>
-            )}
-          </div>
-        </button>
+        />
       </div>
 
       {/* Main store images */}
-      <div className="bg-gradient-to-br from-gray-800/80 to-gray-800/40 rounded-2xl p-6 border border-gray-700/50 backdrop-blur-sm shadow-xl">
-        <h3 className="text-xl font-semibold text-white mb-5 pb-3 border-b border-gray-700/50 flex items-center gap-2">
-          <div className="bg-emerald-500/20 p-1.5 rounded-lg">
-            <Image size={18} className="text-emerald-400" />
-          </div>
-          Main Store Images
-        </h3>
-          
+      <AdminCard title="Main Store Images" icon={<Image size={18} className="text-emerald-400" />}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-5">
             <div>
@@ -715,16 +814,9 @@ const ImageManager: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+      </AdminCard>
         
-      <div className="bg-gradient-to-br from-gray-800/80 to-gray-800/40 rounded-2xl p-6 border border-gray-700/50 backdrop-blur-sm shadow-xl">
-        <h3 className="text-xl font-semibold text-white mb-5 pb-3 border-b border-gray-700/50 flex items-center gap-2">
-          <div className="bg-emerald-500/20 p-1.5 rounded-lg">
-            <FileText size={18} className="text-emerald-400" />
-          </div>
-          Receipt Images
-        </h3>
-        
+      <AdminCard title="Receipt Images" icon={<FileText size={18} className="text-emerald-400" />}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
             <label className="block text-gray-300 mb-2 font-medium">Receipt Background</label>
@@ -786,102 +878,97 @@ const ImageManager: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+      </AdminCard>
       
       {/* Rank Preview Images Section */}
-      <div className="bg-gradient-to-br from-gray-800/80 to-gray-800/40 rounded-2xl p-6 border border-gray-700/50 backdrop-blur-sm shadow-xl">
-        <h3 className="text-xl font-semibold text-white mb-5 pb-3 border-b border-gray-700/50 flex items-center gap-2">
-          <div className="bg-emerald-500/20 p-1.5 rounded-lg">
-            <Shield size={18} className="text-emerald-400" />
-          </div>
-          Rank Preview Images
-        </h3>
-        
-        {/* Rank selector */}
-        <div className="mb-6">
-          <label className="block text-gray-300 mb-3 font-medium">Select Rank to Edit</label>
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-2">
-            {Object.keys(rankImages).map((rank) => (
-              <button
-                key={rank}
-                onClick={() => setSelectedRank(rank)}
-                className={`py-2 px-3 rounded-xl border transition-all text-sm ${
-                  selectedRank === rank
-                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
-                    : 'bg-gray-700/30 text-gray-300 border-gray-700 hover:bg-gray-700/50'
-                }`}
-              >
-                {rank}
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        {/* Selected rank image editor */}
-        <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50">
-          <h4 className="text-lg font-medium text-white mb-4 flex items-center">
-            <Shield size={16} className="text-emerald-400 mr-2" /> 
-            {selectedRank} Rank Image
-          </h4>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-gray-900/70 p-4 rounded-xl flex items-center justify-center relative group border border-gray-700/50 shadow-md hover:shadow-emerald-900/10 transition-shadow">
-              <div className="relative group">
-                <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-200"></div>
-                <img 
-                  src={rankImages[selectedRank]} 
-                  alt={`${selectedRank} Rank Preview`} 
-                  className="h-48 object-contain relative"
-                />
-              </div>
-              <ImageUploader imageType="rank" currentUrl={rankImages[selectedRank]} label="Image" />
-              {uploadLoading === 'rank' && (
-                <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                    <span className="text-sm text-emerald-400">Uploading...</span>
-                  </div>
-                </div>
-              )}
+      <AdminCard title="Rank Preview Images" icon={<Shield size={18} className="text-emerald-400" />}>
+        <div className="space-y-6">
+          {/* Rank selector */}
+          <div className="mb-6">
+            <label className="block text-gray-300 mb-3 font-medium">Select Rank to Edit</label>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-2">
+              {Object.keys(rankImages).map((rank) => (
+                <button
+                  key={rank}
+                  onClick={() => setSelectedRank(rank)}
+                  className={`py-2 px-3 rounded-xl border transition-all text-sm ${
+                    selectedRank === rank
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/50'
+                      : 'bg-gray-700/30 text-gray-300 border-gray-700 hover:bg-gray-700/50'
+                  }`}
+                >
+                  {rank}
+                </button>
+              ))}
             </div>
+          </div>
+          
+          {/* Selected rank image editor */}
+          <div className="bg-gray-800/50 rounded-xl p-5 border border-gray-700/50">
+            <h4 className="text-lg font-medium text-white mb-4 flex items-center">
+              <Shield size={16} className="text-emerald-400 mr-2" /> 
+              {selectedRank} Rank Image
+            </h4>
             
-            <div>
-              <div className="mb-4">
-                <input
-                  type="text"
-                  value={rankImages[selectedRank]}
-                  onChange={(e) => handleRankImageChange(e.target.value)}
-                  className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors text-sm"
-                  placeholder="Enter image URL"
-                />
-                <p className="text-xs text-gray-400 mt-2 ml-1">Image displayed when customers select this rank</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-gray-900/70 p-4 rounded-xl flex items-center justify-center relative group border border-gray-700/50 shadow-md hover:shadow-emerald-900/10 transition-shadow">
+                <div className="relative group">
+                  <div className="absolute -inset-1 bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-lg blur opacity-20 group-hover:opacity-40 transition duration-200"></div>
+                  <img 
+                    src={rankImages[selectedRank]} 
+                    alt={`${selectedRank} Rank Preview`} 
+                    className="h-48 object-contain relative"
+                  />
+                </div>
+                <ImageUploader imageType="rank" currentUrl={rankImages[selectedRank]} label="Image" />
+                {uploadLoading === 'rank' && (
+                  <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-sm text-emerald-400">Uploading...</span>
+                    </div>
+                  </div>
+                )}
               </div>
               
-              <div className="text-sm text-gray-300 mt-4 space-y-2">
-                <p className="flex items-start gap-2">
-                  <span className="bg-emerald-500/20 p-1 rounded-lg inline-flex mt-0.5">
-                    <Info size={14} className="text-emerald-400" />
-                  </span>
-                  <span>Recommended image dimensions: 800x600 pixels</span>
-                </p>
-                <p className="flex items-start gap-2">
-                  <span className="bg-emerald-500/20 p-1 rounded-lg inline-flex mt-0.5">
-                    <Info size={14} className="text-emerald-400" />
-                  </span>
-                  <span>Use transparent PNG images for best results</span>
-                </p>
+              <div>
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    value={rankImages[selectedRank]}
+                    onChange={(e) => handleRankImageChange(e.target.value)}
+                    className="w-full bg-gray-700/50 text-white border border-gray-600/80 rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500/70 focus:ring-1 focus:ring-emerald-500/50 transition-colors text-sm"
+                    placeholder="Enter image URL"
+                  />
+                  <p className="text-xs text-gray-400 mt-2 ml-1">Image displayed when customers select this rank</p>
+                </div>
+                
+                <div className="text-sm text-gray-300 mt-4 space-y-2">
+                  <p className="flex items-start gap-2">
+                    <span className="bg-emerald-500/20 p-1 rounded-lg inline-flex mt-0.5">
+                      <Info size={14} className="text-emerald-400" />
+                    </span>
+                    <span>Recommended image dimensions: 800x600 pixels</span>
+                  </p>
+                  <p className="flex items-start gap-2">
+                    <span className="bg-emerald-500/20 p-1 rounded-lg inline-flex mt-0.5">
+                      <Info size={14} className="text-emerald-400" />
+                    </span>
+                    <span>Use transparent PNG images for best results</span>
+                  </p>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </AdminCard>
     </div>
   );
 };
 
 // Price Manager Component
 const PriceManager: React.FC = () => {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
@@ -895,10 +982,20 @@ const PriceManager: React.FC = () => {
           
         if (error) throw error;
         
-        setProducts(data || []);
+        if (data) {
+          setProducts(data.map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            price: Number(item.price) || 0,
+            original_price: item.original_price ? Number(item.original_price) : null,
+            image_url: item.image_url,
+            color: item.color
+          })));
+        }
       } catch (error) {
         console.error('Error fetching products:', error);
-        alert('Failed to load products');
+        toast.error('Failed to load products');
       } finally {
         setLoading(false);
       }
@@ -908,13 +1005,13 @@ const PriceManager: React.FC = () => {
   }, []);
   
   const handlePriceChange = (id: number, newPrice: number) => {
-    setProducts(products.map(product => 
+    setProducts(prevProducts => prevProducts.map(product => 
       product.id === id ? { ...product, price: newPrice } : product
     ));
   };
   
   const handleOriginalPriceChange = (id: number, newOriginalPrice: number | null) => {
-    setProducts(products.map(product => 
+    setProducts(prevProducts => prevProducts.map(product => 
       product.id === id ? { ...product, original_price: newOriginalPrice } : product
     ));
   };
@@ -923,14 +1020,14 @@ const PriceManager: React.FC = () => {
     const product = products.find(p => p.id === id);
     if (!product) return;
     
-    const currentPrice = parseFloat(product.price);
+    const currentPrice = product.price;
     // Set original price to current price if not already set
-    const originalPrice = product.original_price ? parseFloat(product.original_price) : currentPrice;
+    const originalPrice = product.original_price || currentPrice;
     
     // Calculate new price with discount
-    const discountedPrice = (originalPrice * (100 - discountPercentage) / 100).toFixed(2);
+    const discountedPrice = (originalPrice * (100 - discountPercentage) / 100);
     
-    setProducts(products.map(p => 
+    setProducts(prevProducts => prevProducts.map(p => 
       p.id === id ? { ...p, price: discountedPrice, original_price: originalPrice } : p
     ));
   };
@@ -940,8 +1037,8 @@ const PriceManager: React.FC = () => {
     if (!product || !product.original_price) return;
     
     // Reset price to original price
-    setProducts(products.map(p => 
-      p.id === id ? { ...p, price: product.original_price, original_price: null } : p
+    setProducts(prevProducts => prevProducts.map(p => 
+      p.id === id ? { ...p, price: product.original_price || 0, original_price: null } : p
     ));
   };
   
@@ -951,450 +1048,429 @@ const PriceManager: React.FC = () => {
     try {
       // Update each product
       for (const product of products) {
-        await supabase
+        const { error } = await supabase
           .from('products')
           .update({ 
             price: product.price,
             original_price: product.original_price
           })
           .eq('id', product.id);
+          
+        if (error) throw error;
       }
       
-      alert('Prices updated successfully!');
+      toast.success('Prices updated successfully!');
     } catch (error) {
       console.error('Error saving prices:', error);
-      alert('Failed to save prices. Please try again.');
+      toast.error('Failed to save prices. Please try again.');
     } finally {
       setIsSaving(false);
     }
   };
-  
+
   if (loading) {
-    return <div className="text-white">Loading products...</div>;
+    return <LoadingSpinner />;
   }
-  
+
   return (
-    <div>
-      <h2 className="text-2xl font-bold text-white mb-6">Price & Discount Management</h2>
-      
-      {products.length === 0 ? (
-        <div className="bg-gray-800 p-6 rounded-xl">
-          <p className="text-gray-300">No products found. Please add products first.</p>
-        </div>
-      ) : (
-        <div className="bg-gray-800 p-6 rounded-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4 text-gray-300">Rank</th>
-                  <th className="text-left py-3 px-4 text-gray-300">Description</th>
-                  <th className="text-center py-3 px-4 text-gray-300">Preview</th>
-                  <th className="text-left py-3 px-4 text-gray-300">Price ($)</th>
-                  <th className="text-left py-3 px-4 text-gray-300">Original Price ($)</th>
-                  <th className="text-left py-3 px-4 text-gray-300">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((product) => (
-                  <tr key={product.id} className="border-b border-gray-700">
-                    <td className="py-3 px-4">
-                      <div className={`inline-block px-3 py-1 rounded text-white font-medium bg-gradient-to-r ${product.color}`}>
-                        {product.name}
-                      </div>
-                    </td>
-                    <td className="py-3 px-4 text-gray-300">{product.description}</td>
-                    <td className="py-3 px-4 text-center">
-                      {product.image_url && (
-                        <img 
-                          src={product.image_url} 
-                          alt={product.name} 
-                          className="h-12 w-auto inline-block"
-                        />
-                      )}
-                    </td>
-                    <td className="py-3 px-4">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={product.price}
-                        onChange={(e) => handlePriceChange(product.id, parseFloat(e.target.value))}
-                        className="w-24 bg-gray-700 text-white border border-gray-600 rounded px-3 py-1 focus:outline-none focus:border-emerald-500"
+    <div className="space-y-6">
+      <AdminCard title="Price Management" icon={<DollarSign size={18} className="text-emerald-400" />}>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-700">
+                <th className="text-left py-3 px-4 text-gray-300">Rank</th>
+                <th className="text-left py-3 px-4 text-gray-300">Description</th>
+                <th className="text-center py-3 px-4 text-gray-300">Preview</th>
+                <th className="text-left py-3 px-4 text-gray-300">Price ($)</th>
+                <th className="text-left py-3 px-4 text-gray-300">Original Price ($)</th>
+                <th className="text-left py-3 px-4 text-gray-300">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((product) => (
+                <tr key={product.id} className="border-b border-gray-700">
+                  <td className="py-3 px-4">
+                    <div className={`inline-block px-3 py-1 rounded text-white font-medium bg-gradient-to-r ${product.color}`}>
+                      {product.name}
+                    </div>
+                  </td>
+                  <td className="py-3 px-4 text-gray-300">{product.description}</td>
+                  <td className="py-3 px-4 text-center">
+                    {product.image_url && (
+                      <img 
+                        src={product.image_url} 
+                        alt={product.name} 
+                        className="h-12 w-auto inline-block"
                       />
-                    </td>
-                    <td className="py-3 px-4">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={product.original_price || ''}
-                        onChange={(e) => {
-                          const value = e.target.value ? parseFloat(e.target.value) : null;
-                          handleOriginalPriceChange(product.id, value);
-                        }}
-                        placeholder="No discount"
-                        className="w-24 bg-gray-700 text-white border border-gray-600 rounded px-3 py-1 focus:outline-none focus:border-emerald-500"
-                      />
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-2">
-                        <div className="relative">
-                          <select
-                            className="appearance-none bg-gray-700 text-white border border-gray-600 rounded px-3 py-1 pr-8 focus:outline-none focus:border-emerald-500"
-                            onChange={(e) => {
-                              const value = parseInt(e.target.value);
-                              if (value > 0) {
-                                applyDiscount(product.id, value);
-                              }
-                              e.target.value = ""; // Reset after use
-                            }}
-                            value=""
-                          >
-                            <option value="">Discount %</option>
-                            <option value="5">5% off</option>
-                            <option value="10">10% off</option>
-                            <option value="15">15% off</option>
-                            <option value="20">20% off</option>
-                            <option value="25">25% off</option>
-                            <option value="30">30% off</option>
-                            <option value="40">40% off</option>
-                            <option value="50">50% off</option>
-                          </select>
-                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
-                            <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                              <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                            </svg>
-                          </div>
+                    )}
+                  </td>
+                  <td className="py-3 px-4">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={product.price}
+                      onChange={(e) => handlePriceChange(product.id, Number(e.target.value))}
+                      className="w-24 bg-gray-700 text-white border border-gray-600 rounded px-3 py-1 focus:outline-none focus:border-emerald-500"
+                    />
+                  </td>
+                  <td className="py-3 px-4">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={product.original_price || ''}
+                      onChange={(e) => {
+                        const value = e.target.value ? Number(e.target.value) : null;
+                        handleOriginalPriceChange(product.id, value);
+                      }}
+                      placeholder="No discount"
+                      className="w-24 bg-gray-700 text-white border border-gray-600 rounded px-3 py-1 focus:outline-none focus:border-emerald-500"
+                    />
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex gap-2">
+                      <div className="relative">
+                        <select
+                          className="appearance-none bg-gray-700 text-white border border-gray-600 rounded px-3 py-1 pr-8 focus:outline-none focus:border-emerald-500"
+                          onChange={(e) => {
+                            const value = Number(e.target.value);
+                            if (value > 0) {
+                              applyDiscount(product.id, value);
+                            }
+                            e.target.value = ""; // Reset after use
+                          }}
+                          value=""
+                        >
+                          <option value="">Discount %</option>
+                          <option value="5">5% off</option>
+                          <option value="10">10% off</option>
+                          <option value="15">15% off</option>
+                          <option value="20">20% off</option>
+                          <option value="25">25% off</option>
+                          <option value="30">30% off</option>
+                          <option value="40">40% off</option>
+                          <option value="50">50% off</option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
+                          <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                            <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                          </svg>
                         </div>
-                        
-                        {product.original_price && (
-                          <button
-                            onClick={() => removeDiscount(product.id)}
-                            className="bg-red-600 hover:bg-red-700 text-white rounded px-2 transition-colors"
-                            title="Remove discount"
-                          >
-                            <X size={16} />
-                          </button>
-                        )}
                       </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          <div className="mt-6 flex justify-end">
-            <button 
-              onClick={handleSavePrices}
-              disabled={isSaving}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-2"
-            >
-              {isSaving ? (
-                <>
-                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                  <span>Saving...</span>
-                </>
-              ) : (
-                <>
-                  <Save size={18} />
-                  <span>Save Prices</span>
-                </>
-              )}
-            </button>
-          </div>
+                      
+                      {product.original_price && (
+                        <button
+                          onClick={() => removeDiscount(product.id)}
+                          className="bg-red-600 hover:bg-red-700 text-white rounded px-2 transition-colors"
+                          title="Remove discount"
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      )}
+        
+        <div className="mt-6 flex justify-end">
+          <SaveButton 
+            isSaving={isSaving}
+            onClick={handleSavePrices}
+            disabled={isSaving}
+          />
+        </div>
+      </AdminCard>
     </div>
   );
 };
 
 // Orders Manager Component
 const OrdersManager: React.FC = () => {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [orderActionLoading, setOrderActionLoading] = useState<number | null>(null);
-  
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        setLoading(true);
-        const { data, error } = await supabase
-          .from('orders')
-          .select('*')
-          .order('created_at', { ascending: false });
-          
-        if (error) throw error;
-        
-        setOrders(data || []);
-      } catch (error) {
-        console.error('Error fetching orders:', error);
-        toast.error('Failed to load orders');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchOrders();
-  }, []);
-  
-  const handleStatusChange = async (id: number, status: string) => {
-    setOrderActionLoading(id);
-    
+  const [error, setError] = useState<string | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+
+  // Fetch orders with filters
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
     try {
-      const { error } = await supabase
+      let query = supabase
         .from('orders')
-        .update({ status })
-        .eq('id', id);
-        
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      // Apply search filter
+      if (searchTerm) {
+        query = query.or(`id.ilike.%${searchTerm}%,customer_name.ilike.%${searchTerm}%,customer_phone.ilike.%${searchTerm}%`);
+      }
+
+      // Apply status filter
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter);
+      }
+
+      const { data, error } = await query;
+      
       if (error) throw error;
-      
-      setOrders(orders.map(order => 
-        order.id === id ? { ...order, status } : order
-      ));
-      
-      toast.success(`Order #${id} status updated to: ${status}`);
-    } catch (error) {
-      console.error('Error updating order status:', error);
-      toast.error('Failed to update order status');
+      setOrders(data || []);
+      setTotalPages(Math.ceil(data.length / 10));
+    } catch (err: any) {
+      setError(err.message);
+      toast.error('Failed to fetch orders');
     } finally {
-      setOrderActionLoading(null);
+      setLoading(false);
     }
-  };
-  
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-500/20 text-yellow-300';
-      case 'completed':
-        return 'bg-green-500/20 text-green-300';
-      case 'cancelled':
-        return 'bg-red-500/20 text-red-300';
-      default:
-        return 'bg-gray-500/20 text-gray-300';
-    }
+  }, [searchTerm, statusFilter]);
+
+  useEffect(() => {
+    fetchOrders();
+  }, [fetchOrders]);
+
+  // Calculate pagination
+  const filteredOrders = orders;
+  const startIndex = (currentPage - 1) * 10;
+  const paginatedOrders = filteredOrders.slice(startIndex, startIndex + 10);
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
   };
 
-  const viewOrderDetails = (order: any) => {
-    setSelectedOrder(order);
-    setShowModal(true);
+  // Handle status update with optimistic UI
+  const handleStatusChange = (orderId: string, newStatus: Order['status']) => {
+    setOrders(prev => prev.map(order => 
+      order.id === orderId ? { ...order, status: newStatus } : order
+    ));
   };
-  
-  if (loading) {
-    return (
-      <div className="bg-gray-800 p-8 rounded-xl flex flex-col items-center justify-center min-h-[300px]">
-        <div className="relative w-16 h-16 mb-4">
-          <div className="absolute inset-0 rounded-full border-2 border-emerald-500/30"></div>
-          <div className="absolute inset-0 rounded-full border-t-2 border-emerald-500 animate-spin"></div>
-          <div className="absolute inset-2 rounded-full bg-gray-800 flex items-center justify-center">
-            <ShoppingCart size={20} className="text-emerald-400" />
-          </div>
-        </div>
-        <p className="text-emerald-400 font-medium">Loading orders...</p>
+
+  // Update the renderOrderItems function to use proper types
+  const renderOrderItems = (items: Order['items']) => {
+    return items.map((item: Order['items'][0], index: number) => (
+      <div key={index} className="flex justify-between py-2">
+        <span>{item.name}</span>
+        <span>${item.price.toFixed(2)}</span>
       </div>
-    );
-  }
-  
+    ));
+  };
+
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold text-white">Order Management</h2>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Refresh
-        </button>
-      </div>
-      
-      {orders.length === 0 ? (
-        <div className="bg-gray-800 p-8 rounded-xl text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-700/50 mb-4">
-            <ShoppingCart size={24} className="text-gray-400" />
-          </div>
-          <p className="text-gray-300 text-lg mb-2">No orders found</p>
-          <p className="text-gray-500 text-sm max-w-md mx-auto">When customers place orders, they will appear here for you to manage.</p>
+    <div className="space-y-6">
+      {/* Search and Filter Controls */}
+      <div className="flex flex-col md:flex-row gap-4">
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="Search orders..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
-      ) : (
-        <div className="bg-gray-800 p-6 rounded-xl">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-700">
-                  <th className="text-left py-3 px-4 text-gray-300">Order ID</th>
-                  <th className="text-left py-3 px-4 text-gray-300">Username</th>
-                  <th className="text-left py-3 px-4 text-gray-300">Platform</th>
-                  <th className="text-left py-3 px-4 text-gray-300">Rank</th>
-                  <th className="text-left py-3 px-4 text-gray-300">Price</th>
-                  <th className="text-left py-3 px-4 text-gray-300">Date</th>
-                  <th className="text-left py-3 px-4 text-gray-300">Status</th>
-                  <th className="text-left py-3 px-4 text-gray-300">Actions</th>
+        <div className="flex gap-4">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Status</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Orders Table */}
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-4 text-center">
+                    <div className="flex justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {orders.map((order) => (
-                  <tr key={order.id} className="border-b border-gray-700 hover:bg-gray-700/30 transition-colors">
-                    <td className="py-3 px-4 text-gray-300">#{order.id}</td>
-                    <td className="py-3 px-4 text-white">{order.username}</td>
-                    <td className="py-3 px-4 text-gray-300 capitalize">{order.platform}</td>
-                    <td className="py-3 px-4 text-gray-300">{order.rank}</td>
-                    <td className="py-3 px-4 text-gray-300">${parseFloat(order.price).toFixed(2)}</td>
-                    <td className="py-3 px-4 text-gray-300">{new Date(order.created_at).toLocaleDateString()}</td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-1 rounded text-xs ${getStatusBadgeClass(order.status)}`}>
-                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                      </span>
+              ) : paginatedOrders.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                    No orders found
+                  </td>
+                </tr>
+              ) : (
+                paginatedOrders.map((order) => (
+                  <tr key={order.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {order.id}
                     </td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => viewOrderDetails(order)}
-                          className="bg-gray-600 hover:bg-gray-500 text-white px-2 py-1 rounded text-xs"
-                        >
-                          Details
-                        </button>
-                        <button 
-                          onClick={() => handleStatusChange(order.id, 'completed')}
-                          disabled={orderActionLoading === order.id || order.status === 'completed'}
-                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs disabled:opacity-50 flex items-center"
-                        >
-                          {orderActionLoading === order.id ? (
-                            <><span className="h-3 w-3 mr-1 rounded-full border-2 border-white border-t-transparent animate-spin"></span>Wait</>
-                          ) : (
-                            'Complete'
-                          )}
-                        </button>
-                        <button 
-                          onClick={() => handleStatusChange(order.id, 'cancelled')}
-                          disabled={orderActionLoading === order.id || order.status === 'cancelled'}
-                          className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs disabled:opacity-50"
-                        >
-                          Cancel
-                        </button>
-                        {order.payment_proof && (
-                          <button 
-                            onClick={() => window.open(order.payment_proof, '_blank')}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs flex items-center"
-                          >
-                            <FileText size={14} />
-                          </button>
-                        )}
-                      </div>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {order.customer_name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(order.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      ${order.total_amount.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleStatusChange(order.id, e.target.value as Order['status'])}
+                        className="text-sm rounded-lg border-gray-300 focus:border-blue-500 focus:ring-blue-500"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="processing">Processing</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <button
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setIsModalOpen(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-900"
+                      >
+                        View Details
+                      </button>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-6 py-4 flex items-center justify-between border-t border-gray-200">
+            <div className="flex-1 flex justify-between sm:hidden">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+              >
+                Next
+              </button>
+            </div>
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
+                  <span className="font-medium">
+                    {Math.min(startIndex + 10, filteredOrders.length)}
+                  </span>{' '}
+                  of <span className="font-medium">{filteredOrders.length}</span> results
+                </p>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
+                        currentPage === page
+                          ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                          : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Order Details Modal */}
-      {showModal && selectedOrder && (
-        <div className="fixed inset-0 z-50 overflow-y-auto bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-gray-800 rounded-xl max-w-2xl w-full relative border border-gray-700 shadow-xl animate-fadeIn">
-            <button 
-              onClick={() => setShowModal(false)}
-              className="absolute right-4 top-4 text-gray-400 hover:text-white"
-            >
-              <X size={20} />
-            </button>
-            
+      {isModalOpen && selectedOrder && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <div className="flex items-center justify-between mb-4 pb-4 border-b border-gray-700">
-                <h3 className="text-xl font-bold text-white">Order Details</h3>
-                <span className={`px-3 py-1 rounded-full text-xs ${getStatusBadgeClass(selectedOrder.status)}`}>
-                  {selectedOrder.status.charAt(0).toUpperCase() + selectedOrder.status.slice(1)}
-                </span>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="text-lg font-medium">Order Details</h3>
+                  <p className="text-sm text-gray-500">Order #{selectedOrder.id}</p>
+                </div>
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <X size={20} />
+                </button>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
-                  <div className="flex flex-col space-y-4">
-                    <div>
-                      <p className="text-gray-400 text-sm">Order ID</p>
-                      <p className="text-white font-medium">#{selectedOrder.id}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">Date</p>
-                      <p className="text-white">{new Date(selectedOrder.created_at).toLocaleString()}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">Username</p>
-                      <p className="text-white font-medium">{selectedOrder.username}</p>
-                    </div>
-                  </div>
+                  <h4 className="text-sm font-medium text-gray-500">Customer</h4>
+                  <p className="mt-1">{selectedOrder.customer_name}</p>
+                  <p className="text-sm text-gray-500">{selectedOrder.customer_phone}</p>
                 </div>
-                
                 <div>
-                  <div className="flex flex-col space-y-4">
-                    <div>
-                      <p className="text-gray-400 text-sm">Platform</p>
-                      <p className="text-white capitalize">{selectedOrder.platform}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">Rank</p>
-                      <p className="text-white font-medium">{selectedOrder.rank}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">Price</p>
-                      <p className="text-emerald-400 font-bold">${parseFloat(selectedOrder.price).toFixed(2)}</p>
-                    </div>
-                  </div>
+                  <h4 className="text-sm font-medium text-gray-500">Order Date</h4>
+                  <p className="mt-1">{new Date(selectedOrder.created_at).toLocaleDateString()}</p>
                 </div>
               </div>
 
-              {selectedOrder.payment_proof && (
-                <div className="mb-6">
-                  <p className="text-gray-400 text-sm mb-2">Payment Proof</p>
-                  <div className="bg-gray-900 p-2 rounded-lg border border-gray-700">
-                    <img 
-                      src={selectedOrder.payment_proof} 
-                      alt="Payment Proof" 
-                      className="w-full h-auto max-h-64 object-contain rounded"
-                      onError={(e) => {
-                        e.currentTarget.src = 'https://via.placeholder.com/300x200?text=Image+Not+Available';
-                      }}
-                    />
-                  </div>
+              <div className="mb-6">
+                <h4 className="text-sm font-medium text-gray-500">Order Items</h4>
+                <div className="mt-2 space-y-2">
+                  {renderOrderItems(selectedOrder.items)}
                 </div>
-              )}
-              
-              <div className="flex justify-between items-center pt-4 border-t border-gray-700">
-                <button
-                  onClick={() => setShowModal(false)}
-                  className="bg-gray-600 hover:bg-gray-500 text-white px-4 py-2 rounded"
-                >
-                  Close
-                </button>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => {
-                      handleStatusChange(selectedOrder.id, 'completed');
-                      setShowModal(false);
-                    }}
-                    disabled={orderActionLoading === selectedOrder.id || selectedOrder.status === 'completed'}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded disabled:opacity-50"
+              </div>
+
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500">Total Amount</h4>
+                  <p className="text-lg font-medium">${selectedOrder.total_amount.toFixed(2)}</p>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500">Status</h4>
+                  <select
+                    value={selectedOrder.status}
+                    onChange={(e) => handleStatusChange(selectedOrder.id, e.target.value as Order['status'])}
+                    className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                   >
-                    Mark Completed
-                  </button>
-                  <button 
-                    onClick={() => {
-                      handleStatusChange(selectedOrder.id, 'cancelled');
-                      setShowModal(false);
-                    }}
-                    disabled={orderActionLoading === selectedOrder.id || selectedOrder.status === 'cancelled'}
-                    className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded disabled:opacity-50"
-                  >
-                    Cancel Order
-                  </button>
+                    <option value="pending">Pending</option>
+                    <option value="processing">Processing</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -1405,146 +1481,13 @@ const OrdersManager: React.FC = () => {
   );
 };
 
-// Settings Manager Component
-const SettingsManager: React.FC = () => {
-  const [settings, setSettings] = useState({
-    site_title: 'CHAMPA STORE',
-    discord_webhook_url: '',
-    maintenance_mode: false,
-    background_video_url: '/videos/background.mp4'
-  });
-  const [loading, setLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('site_config')
-          .select('*');
-          
-        if (error) throw error;
-        
-        if (data && data.length > 0) {
-          const configObj = data.reduce((acc: any, item: any) => {
-            acc[item.key] = item.value;
-            return acc;
-          }, {});
-          
-          setSettings({
-            site_title: configObj.site_title || 'CHAMPA STORE',
-            discord_webhook_url: configObj.discord_webhook_url || '',
-            maintenance_mode: configObj.maintenance_mode === 'true',
-            background_video_url: configObj.background_video_url || '/videos/background.mp4'
-          });
-        }
-      } catch (error) {
-        console.error('Error fetching settings:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchSettings();
-  }, []);
-  
-  const handleSaveSettings = async () => {
-    setIsSaving(true);
-    
-    try {
-      // Convert settings to array format for supabase
-      const settingsArray = Object.entries(settings).map(([key, value]) => ({
-        key,
-        value: typeof value === 'boolean' ? value.toString() : value
-      }));
-      
-      await supabase
-        .from('site_config')
-        .upsert(settingsArray);
-      
-      alert('Settings saved successfully!');
-    } catch (error) {
-      console.error('Error saving settings:', error);
-      alert('Failed to save settings. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-  
-  if (loading) {
-    return <div className="text-white">Loading settings...</div>;
-  }
-  
+// Add SettingsManager component
+const SettingsManager = () => {
   return (
-    <div>
-      <h2 className="text-2xl font-bold text-white mb-6">Site Settings</h2>
-      
-      <div className="bg-gray-800 p-6 rounded-xl">
-        <div className="grid grid-cols-1 gap-4 mb-6">
-          <div>
-            <label className="block text-gray-300 mb-2">Site Title</label>
-            <input
-              type="text"
-              value={settings.site_title}
-              onChange={(e) => setSettings({ ...settings, site_title: e.target.value })}
-              className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-gray-300 mb-2">Discord Webhook URL</label>
-            <input
-              type="text"
-              value={settings.discord_webhook_url}
-              onChange={(e) => setSettings({ ...settings, discord_webhook_url: e.target.value })}
-              className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-              placeholder="https://discord.com/api/webhooks/..."
-            />
-          </div>
-          
-          <div>
-            <label className="block text-gray-300 mb-2">Background Video URL</label>
-            <input
-              type="text"
-              value={settings.background_video_url}
-              onChange={(e) => setSettings({ ...settings, background_video_url: e.target.value })}
-              className="w-full bg-gray-700 text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-          
-          <div className="flex items-center mt-2">
-            <input
-              id="maintenance_mode"
-              type="checkbox"
-              checked={settings.maintenance_mode}
-              onChange={(e) => setSettings({ ...settings, maintenance_mode: e.target.checked })}
-              className="h-4 w-4 bg-gray-700 border-gray-600 rounded focus:ring-emerald-500 text-emerald-500"
-            />
-            <label htmlFor="maintenance_mode" className="ml-2 text-gray-300">
-              Enable Maintenance Mode
-            </label>
-          </div>
-        </div>
-        
-        <div className="flex justify-end">
-          <button 
-            onClick={handleSaveSettings}
-            disabled={isSaving}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-lg transition-colors flex items-center gap-2"
-          >
-            {isSaving ? (
-              <>
-                <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
-                <span>Saving...</span>
-              </>
-            ) : (
-              <>
-                <Save size={18} />
-                <span>Save Settings</span>
-              </>
-            )}
-          </button>
-        </div>
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
+      <div className="bg-white rounded-lg shadow p-6">
+        <p className="text-gray-500">Settings management coming soon...</p>
       </div>
     </div>
   );

@@ -77,7 +77,54 @@ const ReceiptDetailRow = memo(({
   </div>
 ));
 
-// Optimized payment proof component with preloading and error boundaries
+// Improved image loading with retry mechanism
+const useImageWithRetry = (src: string, maxRetries = 3) => {
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [retries, setRetries] = useState(0);
+
+  useEffect(() => {
+    if (!src) return;
+    
+    const img = new Image();
+    let mounted = true;
+
+    const loadImage = () => {
+      setLoading(true);
+      setError(false);
+      
+      img.onload = () => {
+        if (mounted) {
+          setLoading(false);
+          setError(false);
+        }
+      };
+      
+      img.onerror = () => {
+        if (mounted && retries < maxRetries) {
+          setRetries(prev => prev + 1);
+          setTimeout(loadImage, 1000 * (retries + 1)); // Exponential backoff
+        } else if (mounted) {
+          setLoading(false);
+          setError(true);
+        }
+      };
+
+      img.src = src;
+    };
+
+    loadImage();
+    return () => {
+      mounted = false;
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [src, retries, maxRetries]);
+
+  return { loading, error };
+};
+
+// Improved payment proof preview component
 const PaymentProofPreview = memo(({ 
   imageUrl, 
   onToggleZoom,
@@ -89,36 +136,7 @@ const PaymentProofPreview = memo(({
   altText?: string;
   maxHeight?: number;
 }) => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const imgRef = useRef<HTMLImageElement>(null);
-
-  // Preload image 
-  useEffect(() => {
-    if (!imageUrl) return;
-    
-    // Create new image to preload
-    const img = new Image();
-    
-    img.onload = () => setIsLoading(false);
-    img.onerror = () => {
-      setIsLoading(false);
-      setError(true);
-      console.error("Failed to load image:", imageUrl);
-    };
-    
-    // Set crossOrigin to prevent CORS issues
-    img.crossOrigin = "anonymous";
-    
-    // Start loading
-    img.src = imageUrl;
-    
-    return () => {
-      // Cancel loading
-      img.onload = null;
-      img.onerror = null;
-    };
-  }, [imageUrl]);
+  const { loading, error } = useImageWithRetry(imageUrl);
 
   if (!imageUrl) return null;
 
@@ -126,7 +144,7 @@ const PaymentProofPreview = memo(({
     <div className="mt-4 pt-4 border-t border-gray-700">
       <div className="flex items-center justify-between">
         <div className="text-xs text-gray-500 mb-2">Payment Proof</div>
-        {!error && !isLoading && (
+        {!error && !loading && (
           <button 
             onClick={onToggleZoom} 
             className="text-xs text-emerald-500 hover:text-emerald-400 flex items-center gap-1"
@@ -138,10 +156,10 @@ const PaymentProofPreview = memo(({
         )}
       </div>
       <div 
-        className={`relative bg-gray-900/50 rounded-lg overflow-hidden ${!error && !isLoading ? 'cursor-zoom-in' : ''}`} 
-        onClick={!error && !isLoading ? onToggleZoom : undefined}
+        className={`relative bg-gray-900/50 rounded-lg overflow-hidden ${!error && !loading ? 'cursor-zoom-in' : ''}`} 
+        onClick={!error && !loading ? onToggleZoom : undefined}
       >
-        {isLoading && (
+        {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-800/50">
             <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
@@ -150,15 +168,20 @@ const PaymentProofPreview = memo(({
           <div className="p-4 text-sm text-gray-400 text-center">
             <ImageIcon className="mx-auto mb-2 opacity-50" size={24} />
             Could not load payment proof image
+            <button 
+              onClick={() => window.open(imageUrl, '_blank')}
+              className="mt-2 text-xs text-emerald-500 hover:text-emerald-400 flex items-center gap-1 mx-auto"
+            >
+              <Eye size={12} />
+              View Original
+            </button>
           </div>
         ) : (
           <img 
-            ref={imgRef}
             src={imageUrl} 
             alt={altText} 
             className={`w-full h-auto object-contain transition-all duration-300`}
             style={{ maxHeight: `${maxHeight}px` }}
-            onError={() => setError(true)}
             loading="lazy"
             crossOrigin="anonymous" 
           />
@@ -167,6 +190,44 @@ const PaymentProofPreview = memo(({
     </div>
   );
 });
+
+// Optimized print functionality
+const usePrint = (ref: React.RefObject<HTMLDivElement>) => {
+  const [isPrinting, setIsPrinting] = useState(false);
+
+  const handlePrint = useReactToPrint({
+    contentRef: ref,
+    onPrintError: () => {
+      setIsPrinting(false);
+      toast.error('Failed to print receipt');
+    },
+    onAfterPrint: () => {
+      setIsPrinting(false);
+      toast.success('Receipt printed successfully');
+    },
+    pageStyle: `
+      @media print {
+        @page {
+          size: 80mm 297mm;
+          margin: 0;
+        }
+        body {
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+      }
+    `,
+  });
+
+  const printWithLoading = () => {
+    setIsPrinting(true);
+    setTimeout(() => {
+      handlePrint();
+    }, 100);
+  };
+
+  return { handlePrint: printWithLoading, isPrinting };
+};
 
 // Optimized Receipt Modal component with enhanced configurability
 export const ReceiptModal = memo(function ReceiptModal({ 
@@ -186,11 +247,39 @@ export const ReceiptModal = memo(function ReceiptModal({
   logoUrl = 'https://i.imgur.com/ArKEQz1.png'
 }: ReceiptModalProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
-  const [fadeIn, setFadeIn] = useState<boolean>(false);
-  const [animateComplete, setAnimateComplete] = useState<boolean>(false);
-  const [isPrinting, setIsPrinting] = useState(false);
+  const { handlePrint, isPrinting } = usePrint(receiptRef);
   const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+  const [imageViewerUrl, setImageViewerUrl] = useState<string | null>(null);
   
+  // Preload images
+  useEffect(() => {
+    if (isOpen) {
+      const imagesToPreload = [
+        receiptBackgroundUrl,
+        receiptLogoUrl,
+        logoUrl,
+        orderData.payment_proof
+      ].filter(Boolean);
+
+      imagesToPreload.forEach(url => {
+        if (url) {
+          const img = new Image();
+          img.src = url;
+        }
+      });
+    }
+  }, [isOpen, receiptBackgroundUrl, receiptLogoUrl, logoUrl, orderData.payment_proof]);
+
+  const handleImageView = useCallback((url: string) => {
+    setImageViewerUrl(url);
+    setIsImageViewerOpen(true);
+  }, []);
+
+  const handleImageViewerClose = useCallback(() => {
+    setIsImageViewerOpen(false);
+    setImageViewerUrl(null);
+  }, []);
+
   // Color scheme based on theme
   const colors = useMemo(() => {
     const primaryColor = theme.primaryColor || 'emerald';
@@ -281,114 +370,24 @@ export const ReceiptModal = memo(function ReceiptModal({
   // Enhanced animations with configurability
   useEffect(() => {
     if (!isOpen) {
-      setFadeIn(false);
-      setAnimateComplete(false);
       setIsImageViewerOpen(false);
       return;
     }
     
     if (!theme.animations) {
       // Skip animations if disabled
-      setFadeIn(true);
-      setAnimateComplete(true);
+      setIsImageViewerOpen(true);
       return;
     }
-    
-    // Delay fade-in for smoother entry 
-    const timer = setTimeout(() => setFadeIn(true), 20); // Fast duration
-    // Add completion animation after fade-in
-    const completeTimer = setTimeout(() => setAnimateComplete(true), 300); // Normal duration
-    
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(completeTimer);
-    };
   }, [isOpen, theme.animations]);
-
-  // Handle image viewer
-  const toggleImageViewer = useCallback(() => {
-    if (paymentProofUrl) {
-      setIsImageViewerOpen(prev => !prev);
-    }
-  }, [paymentProofUrl]);
-
-  // Fixed useReactToPrint implementation with proper typing
-  const handlePrint = useReactToPrint({
-    documentTitle: `Receipt-${username}-${rank}`,
-    onAfterPrint: () => toast.success('Receipt printed successfully'),
-    onPrintError: () => toast.error('Failed to print receipt'),
-    // Use properly typed content getter function
-    contentRef: receiptRef
-  });
-
-  // Effect to handle escape key and shortcuts
-  useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isImageViewerOpen) {
-          setIsImageViewerOpen(false);
-        } else {
-          onClose();
-        }
-      } else if (e.key === 'p' && e.ctrlKey && printEnabled) {
-        e.preventDefault();
-        handlePrint();
-      }
-    };
-    
-    if (isOpen) {
-      window.addEventListener('keydown', handleKeyPress);
-    }
-    
-    return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-    };
-  }, [isOpen, onClose, isImageViewerOpen, handlePrint, printEnabled]);
 
   // If modal is closed, don't render anything (performance optimization)
   if (!isOpen) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open: boolean) => !open && onClose()}>
-      <DialogContent 
-        className={`bg-gray-800/95 p-4 sm:p-6 md:p-8 w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-700 shadow-xl transform transition-all 
-          ${theme.animations 
-            ? `duration-300 ${fadeIn ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}` 
-            : 'opacity-100'}`}
-        aria-describedby="receipt-description"
-      >
-        <DialogTitle>
-          <VisuallyHidden.Root>Purchase Receipt</VisuallyHidden.Root>
-        </DialogTitle>
-        
-        <p id="receipt-description" className="sr-only">
-          Your purchase receipt for {rank} rank on {storeName}
-        </p>
-      
-        <button
-          onClick={onClose}
-          className="absolute right-3 top-3 sm:right-4 sm:top-4 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-opacity-50 rounded-full p-1"
-          aria-label="Close receipt"
-        >
-          <X size={24} />
-        </button>
-
-        {/* Success animation that plays on load - conditionally rendered based on theme.animations */}
-        {theme.animations && (
-          <div className={`absolute inset-0 bg-emerald-500/20 flex items-center justify-center transition-opacity duration-500 ${animateComplete ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <div className="w-20 h-20 rounded-full bg-emerald-500/30 flex items-center justify-center animate-ping">
-              <Check size={40} className="text-emerald-500" />
-            </div>
-          </div>
-        )}
-
-        {/* Receipt Content - Printable Area */}
-        <div 
-          ref={receiptRef} 
-          className={`bg-white text-gray-900 rounded-xl p-6 mb-4 print:shadow-none transition-all relative overflow-hidden
-            ${theme.animations ? `duration-300 ${animateComplete ? 'shadow-xl' : 'shadow-sm'}` : 'shadow-xl'}`}
-          aria-labelledby="receipt-title"
-        >
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="max-w-md mx-auto bg-gray-800 text-white border-gray-700 p-0">
+        <div ref={receiptRef} className="relative bg-gray-800 min-h-[200px]">
           {/* Custom Receipt Background */}
           <div className="absolute inset-0 z-0 opacity-10">
             <img 
@@ -489,7 +488,7 @@ export const ReceiptModal = memo(function ReceiptModal({
               <div className="flex items-center justify-between mb-3">
                 <h4 className={`text-sm font-semibold text-${theme.primaryColor || 'emerald'}-600`}>Payment Proof</h4>
                 <button 
-                  onClick={toggleImageViewer}
+                  onClick={() => handleImageView(paymentProofUrl)}
                   className={`text-xs bg-${theme.primaryColor || 'emerald'}-50 text-${theme.primaryColor || 'emerald'}-600 hover:text-${theme.primaryColor || 'emerald'}-700 flex items-center gap-1 py-1 px-3 rounded-full transition-colors duration-200 hover:bg-${theme.primaryColor || 'emerald'}-100 focus:outline-none focus:ring-2 focus:ring-${theme.primaryColor || 'emerald'}-500 focus:ring-opacity-50`}
                 >
                   <Eye size={14} />
@@ -498,7 +497,7 @@ export const ReceiptModal = memo(function ReceiptModal({
               </div>
               <div 
                 className="bg-gray-50 rounded-lg p-2 cursor-pointer overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300 border border-gray-100"
-                onClick={toggleImageViewer}
+                onClick={() => handleImageView(paymentProofUrl)}
               >
                 <img 
                   src={paymentProofUrl} 
@@ -524,63 +523,32 @@ export const ReceiptModal = memo(function ReceiptModal({
             <div className={`w-8 h-1 bg-${theme.primaryColor || 'emerald'}-500 mx-auto mt-3 rounded-full opacity-50`}></div>
           </div>
         </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-3 mt-4">
+        
+        <div className="p-4 border-t border-gray-700 flex justify-between items-center">
           {printEnabled && (
-            <Button 
-              variant="outline" 
-              className="flex-1 flex items-center justify-center gap-2 text-white bg-zinc-800 hover:bg-zinc-700 border-gray-700 hover:border-gray-600 transition-colors"
-              onClick={() => {
-                setIsPrinting(true);
-                handlePrint();
-                // Reset printing state after a delay to handle any UI effects
-                setTimeout(() => setIsPrinting(false), 2000);
-              }}
+            <Button
+              onClick={() => handlePrint()}
               disabled={isPrinting}
+              className="flex items-center gap-2"
             >
-              {isPrinting ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                  Printing...
-                </>
-              ) : (
-                <>
-                  <Printer size={16} />
-                  Print Receipt
-                </>
-              )}
+              <Printer size={16} />
+              {isPrinting ? 'Preparing...' : 'Print Receipt'}
             </Button>
           )}
-          <Button
-            onClick={onClose}
-            className="flex-1 bg-gray-700 hover:bg-gray-600 text-white border-gray-600"
-            variant="outline"
-          >
-            Close
-          </Button>
+          <Button variant="ghost" onClick={onClose}>Close</Button>
         </div>
-
-        {/* Full Screen Image Viewer - Lazy loaded with enhanced configuration */}
-        {isImageViewerOpen && paymentProofUrl && (
-          <Suspense fallback={
-            <FallbackImageViewer onClose={toggleImageViewer} imageUrl={paymentProofUrl} />
-          }>
-            <div className="fixed inset-0 z-[999] flex items-center justify-center">
-              <ImageViewer 
-                imageUrl={paymentProofUrl}
-                onClose={toggleImageViewer}
-                alt={`Payment proof for ${username}'s ${rank} rank purchase`}
-                initialScale={1}
-                enableControls={true}
-                enableDownload={true}
-                enableRotate={true}
-                disableAnimation={!theme.animations}
-              />
-            </div>
-          </Suspense>
-        )}
       </DialogContent>
+
+      {/* Image viewer */}
+      {isImageViewerOpen && imageViewerUrl && (
+        <Suspense fallback={<FallbackImageViewer onClose={handleImageViewerClose} imageUrl={imageViewerUrl} />}>
+          <ImageViewer
+            onClose={handleImageViewerClose}
+            imageUrl={imageViewerUrl}
+            alt={`Payment proof for order ${orderData.orderId || ''}`}
+          />
+        </Suspense>
+      )}
     </Dialog>
   );
 });
